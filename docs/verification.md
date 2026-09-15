@@ -6,7 +6,7 @@
 - Production Vinext Worker build: passed after final print-preview and print-style changes.
 - Dependency lock consistency: npm ci dry-run with offline resolution passed.
 - Local API integration: authentication rejection, invalid input rejection, cross-origin rejection, durable write/read, stale revision 409, original state restored: passed.
-- Initial D1 migration applied successfully to local database. Production migration remains part of publishing.
+- Initial D1 migration applied successfully locally and during publication; hosted GET, save and reload succeeded. See `delivery.md`.
 
 ## Actual browser interactions
 - Desktop 1440×1000 and mobile 390×844 rendered and visually inspected; mobile document width stayed within viewport.
