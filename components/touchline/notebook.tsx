@@ -1,0 +1,834 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowUpRight,
+  BookOpen,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  Copy,
+  Download,
+  HelpCircle,
+  Plus,
+  Route,
+  Search,
+  Sparkles,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+import {
+  firstPlay,
+  uid,
+  restoreRemoved,
+  type Play,
+  type Session,
+  type NotebookData,
+} from "@/lib/touchline/model";
+import { notebookSchema } from "@/lib/touchline/validation";
+import { useNotebook } from "@/lib/touchline/use-notebook";
+import { downloadFile } from "@/lib/touchline/export";
+import { Pitch } from "./pitch";
+import { Editor } from "./editor";
+import { Sessions } from "./sessions";
+
+type DeleteItem = { type: "play" | "session"; id: string; title: string };
+export default function Notebook() {
+  const { data, setData, ready, status, error, canRetry, retry, reload } =
+    useNotebook();
+  const [tab, setTab] = useState("board"),
+    [selected, setSelected] = useState(firstPlay.id),
+    [query, setQuery] = useState(""),
+    [newOpen, setNewOpen] = useState(false),
+    [newName, setNewName] = useState(""),
+    [helpOpen, setHelpOpen] = useState(false),
+    [deleting, setDeleting] = useState<DeleteItem | null>(null),
+    [print, setPrint] = useState<{ play?: Play; session?: Session } | null>(
+      null,
+    );
+  const importInput = useRef<HTMLInputElement>(null);
+  const current = useRef(data);
+  current.current = data;
+  const play = data.plays.find((p) => p.id === selected) ?? data.plays[0];
+  const updatePlay = (p: Play) =>
+    setData((d) => ({
+      ...d,
+      plays: d.plays.map((x) => (x.id === p.id ? p : x)),
+    }));
+  const openPlay = (id: string) => {
+    setSelected(id);
+    setTab("board");
+  };
+  const backup = () =>
+    downloadFile(
+      JSON.stringify(
+        { format: "touchline-notebook", version: 1, data },
+        null,
+        2,
+      ),
+      "touchline-notebook-" + new Date().toISOString().slice(0, 10) + ".json",
+      "application/json",
+    );
+  const createPlay = (name: string) => {
+    if (!ready || data.plays.length >= 100) return;
+    const p: Play = {
+      id: uid(),
+      title: name.trim(),
+      category: "Attack",
+      description: "",
+      cues: "",
+      players: [],
+      movements: [],
+      ballId: "",
+      updatedAt: new Date().toISOString(),
+    };
+    setData((d) => ({ ...d, plays: [...d.plays, p] }));
+    openPlay(p.id);
+    setNewOpen(false);
+    setNewName("");
+    toast.success("A fresh page. Make it yours.");
+  };
+  const duplicate = (p: Play) => {
+    if (data.plays.length >= 100)
+      return toast.error("Your playbook holds up to 100 plays.");
+    const copy = {
+      ...structuredClone(p),
+      id: uid(),
+      title: (p.title + " — variation").slice(0, 100),
+      updatedAt: new Date().toISOString(),
+    };
+    setData((d) => ({ ...d, plays: [...d.plays, copy] }));
+    openPlay(copy.id);
+    toast.success("Variation created");
+  };
+  const newSession = () => {
+    if (data.sessions.length >= 50) return;
+    const s: Session = {
+      id: uid(),
+      title: "The next session",
+      date: "",
+      players: 12,
+      targetMinutes: 60,
+      blocks: [],
+    };
+    setData((d) => ({ ...d, sessions: [...d.sessions, s] }));
+    setTab("session");
+  };
+  const duplicateSession = (s: Session) => {
+    if (data.sessions.length >= 50) return;
+    setData((d) => ({
+      ...d,
+      sessions: [
+        ...d.sessions,
+        {
+          ...structuredClone(s),
+          id: uid(),
+          title: (s.title + " — copy").slice(0, 100),
+          blocks: s.blocks.map((b) => ({ ...b, id: uid() })),
+        },
+      ],
+    }));
+    toast.success("Session copied");
+  };
+  const remove = () => {
+    if (!deleting) return;
+    const previous = data;
+    if (deleting.type === "play")
+      setData((d) => ({
+        ...d,
+        plays: d.plays.filter((p) => p.id !== deleting.id),
+        sessions: d.sessions.map((s) => ({
+          ...s,
+          blocks: s.blocks.map((b) =>
+            b.playId === deleting.id ? { ...b, playId: undefined } : b,
+          ),
+        })),
+      }));
+    else
+      setData((d) => ({
+        ...d,
+        sessions: d.sessions.filter((s) => s.id !== deleting.id),
+      }));
+    setDeleting(null);
+    toast("Removed from notebook", {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          setData((now) =>
+            restoreRemoved(now, previous, deleting.type, deleting.id),
+          ),
+      },
+      duration: 7000,
+    });
+  };
+  const importBackup = async (file?: File) => {
+    if (!file) return;
+    try {
+      if (file.size > 2000000)
+        throw new Error("Choose a backup smaller than 2 MB.");
+      const raw = JSON.parse(await file.text());
+      if (raw.format !== "touchline-notebook" || raw.version !== 1)
+        throw new Error("Choose a Touchline notebook backup.");
+      const imported = notebookSchema.parse(raw.data);
+      const ids = new Map(imported.plays.map((p) => [p.id, uid()]));
+      const merged: NotebookData = {
+        plays: [
+          ...current.current.plays,
+          ...imported.plays.map((p) => ({
+            ...p,
+            id: ids.get(p.id)!,
+            title: (p.title + " (imported)").slice(0, 100),
+          })),
+        ],
+        sessions: [
+          ...current.current.sessions,
+          ...imported.sessions.map((s) => ({
+            ...s,
+            id: uid(),
+            blocks: s.blocks.map((b) => ({
+              ...b,
+              id: uid(),
+              playId: b.playId ? ids.get(b.playId) : undefined,
+            })),
+          })),
+        ],
+      };
+      notebookSchema.parse(merged);
+      setData(merged);
+      toast.success("Backup added to your notebook");
+    } catch (e) {
+      toast.error(
+        e instanceof Error && !("issues" in e)
+          ? e.message
+          : "This backup is invalid or exceeds the notebook limits.",
+      );
+    } finally {
+      if (importInput.current) importInput.current.value = "";
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setHelpOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+  useEffect(() => {
+    const context = (
+      document as unknown as {
+        modelContext?: {
+          registerTool: (
+            tool: unknown,
+            options: { signal: AbortSignal },
+          ) => unknown;
+        };
+      }
+    ).modelContext;
+    if (!context?.registerTool) return;
+    const lifecycle = new AbortController();
+    const tools = [
+      {
+        name: "read_touchline_notebook",
+        title: "Read rugby notebook",
+        description:
+          "List the saved play names and session durations currently shown in this notebook.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false,
+        },
+        annotations: { readOnlyHint: true, untrustedContentHint: true },
+        execute: async (input: unknown) => {
+          if (!input || typeof input !== "object" || Object.keys(input).length)
+            throw new Error("Expected an empty object");
+          return {
+            plays: current.current.plays.map((p) => ({
+              id: p.id,
+              title: p.title,
+              category: p.category,
+            })),
+            sessions: current.current.sessions.map((s) => ({
+              id: s.id,
+              title: s.title,
+              minutes: s.blocks.reduce((n, b) => n + b.minutes, 0),
+            })),
+          };
+        },
+      },
+      {
+        name: "open_touchline_play",
+        title: "Open rugby play",
+        description:
+          "Open an existing play on the drawing board. This does not modify saved data.",
+        inputSchema: {
+          type: "object",
+          properties: { playId: { type: "string" } },
+          required: ["playId"],
+          additionalProperties: false,
+        },
+        annotations: { readOnlyHint: false, untrustedContentHint: false },
+        execute: async (input: unknown) => {
+          if (
+            !input ||
+            typeof input !== "object" ||
+            Object.keys(input).some((k) => k !== "playId") ||
+            typeof (input as { playId?: unknown }).playId !== "string"
+          )
+            throw new Error("A playId is required");
+          const id = (input as { playId: string }).playId;
+          const found = current.current.plays.find((p) => p.id === id);
+          if (!found) throw new Error("Play not found");
+          openPlay(id);
+          await new Promise((resolve) =>
+            requestAnimationFrame(() => resolve(null)),
+          );
+          return { id, title: found.title, view: "board" };
+        },
+      },
+    ];
+    for (const tool of tools) {
+      try {
+        Promise.resolve(
+          context.registerTool(tool, { signal: lifecycle.signal }),
+        ).catch(() => {});
+      } catch {}
+    }
+    return () => lifecycle.abort();
+  }, []);
+  const filtered = data.plays.filter((p) =>
+    (p.title + " " + p.category + " " + p.description)
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
+  return (
+    <>
+      <div className="app-shell">
+        <header className="topbar">
+          <a href="/" className="brand">
+            <span className="brand-mark">
+              <Route size={22} />
+            </span>
+            touchline<span className="brand-note">THE RUGBY NOTEBOOK</span>
+          </a>
+          <div className="header-meta">
+            <span
+              className={"save-status " + (error ? "save-error" : "")}
+              role="status"
+            >
+              {status === "All changes saved" && <Check size={13} />} {status}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setHelpOpen(true)}
+              aria-label="How to use Touchline"
+            >
+              <HelpCircle />
+            </Button>
+            <span className="avatar">T</span>
+          </div>
+        </header>
+        <main>
+          <div className="page-heading">
+            <div>
+              <p className="eyebrow">A LITTLE THOUGHT. A BETTER GAME.</p>
+              <h1>Make room for the idea.</h1>
+              <p className="lede">
+                Draw it out, play it through, and take it to the pitch.
+              </p>
+            </div>
+            <Button
+              className="new-play"
+              onClick={() => {
+                setNewName("");
+                setNewOpen(true);
+              }}
+              disabled={!ready || data.plays.length >= 100}
+            >
+              <Plus />
+              New play
+            </Button>
+          </div>
+          {error && (
+            <div className="error-banner" role="alert">
+              <p>{error}</p>
+              <div>
+                <Button variant="outline" onClick={retry} disabled={!canRetry}>
+                  Retry
+                </Button>
+                <Button variant="outline" onClick={backup}>
+                  Download your edits
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    backup();
+                    void reload();
+                  }}
+                >
+                  Back up & reload saved
+                </Button>
+              </div>
+            </div>
+          )}
+          <Tabs value={tab} onValueChange={setTab}>
+            <div className="section-bar">
+              <TabsList variant="line">
+                <TabsTrigger value="board">
+                  <Route />
+                  Drawing board
+                </TabsTrigger>
+                <TabsTrigger value="book">
+                  <BookOpen />
+                  Playbook<span className="tab-count">{data.plays.length}</span>
+                </TabsTrigger>
+                <TabsTrigger value="session">
+                  <CalendarDays />
+                  Sessions
+                </TabsTrigger>
+              </TabsList>
+              <span className="quiet-note">
+                A notebook, with a little movement.
+              </span>
+            </div>
+            <TabsContent value="board">
+              <div className="workspace full-workspace">
+                <aside className="left-panel">
+                  <div className="panel-heading">
+                    <span>YOUR PLAYS</span>
+                    <span>{String(data.plays.length).padStart(2, "0")}</span>
+                  </div>
+                  {data.plays.map((p, i) => (
+                    <button
+                      key={p.id}
+                      className={
+                        "play-list-item " + (p.id === play?.id ? "active" : "")
+                      }
+                      onClick={() => openPlay(p.id)}
+                    >
+                      <span className="play-number">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span>
+                        <strong>{p.title || "Untitled play"}</strong>
+                        <small>
+                          {p.category} ·{" "}
+                          {p.players.filter((x) => x.team === "attack").length}{" "}
+                          v{" "}
+                          {p.players.filter((x) => x.team === "defence").length}
+                        </small>
+                      </span>
+                      <ChevronRight size={15} />
+                    </button>
+                  ))}
+                  <button
+                    className="add-play-link"
+                    onClick={() => setNewOpen(true)}
+                    disabled={!ready}
+                  >
+                    <Plus size={15} />A fresh page
+                  </button>
+                  <div className="notebook-tip">
+                    <Sparkles size={20} />
+                    <p>Good ideas don’t have to arrive fully formed.</p>
+                    <small>
+                      Start with a shape.
+                      <br />
+                      See where it takes you.
+                    </small>
+                  </div>
+                  <div className="sidebar-footer">
+                    <Button variant="ghost" onClick={backup}>
+                      <Download />
+                      Back up notebook
+                    </Button>
+                  </div>
+                </aside>
+                {play ? (
+                  <Editor
+                    play={play}
+                    onChange={updatePlay}
+                    onDuplicate={() => duplicate(play)}
+                    onPrint={() => setPrint({ play })}
+                    disabled={!ready}
+                  />
+                ) : (
+                  <div className="empty-state">
+                    <Route size={32} />
+                    <h2>A blank pitch. Endless possibilities.</h2>
+                    <p>Your next idea belongs here.</p>
+                    <Button onClick={() => setNewOpen(true)} disabled={!ready}>
+                      <Plus />
+                      Draw your first play
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="book">
+              <div className="library-toolbar">
+                <div className="search-field">
+                  <Search size={17} />
+                  <Input
+                    aria-label="Search plays"
+                    placeholder="Find an idea…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+                <div className="icon-actions">
+                  <Button
+                    variant="outline"
+                    onClick={() => importInput.current?.click()}
+                    disabled={!ready}
+                  >
+                    <Upload />
+                    Import backup
+                  </Button>
+                  <Button variant="outline" onClick={backup}>
+                    <Download />
+                    Back up
+                  </Button>
+                </div>
+              </div>
+              <div className="play-grid">
+                {filtered.map((p, i) => (
+                  <article className="play-card" key={p.id}>
+                    <button
+                      className="play-card-preview"
+                      onClick={() => openPlay(p.id)}
+                      aria-label={"Open " + p.title}
+                    >
+                      <Pitch play={p} mini />
+                    </button>
+                    <div className="play-card-content">
+                      <div className="card-eyebrow">
+                        <span>{p.category}</span>
+                        <span>{String(i + 1).padStart(2, "0")}</span>
+                      </div>
+                      <button
+                        className="card-title"
+                        onClick={() => openPlay(p.id)}
+                      >
+                        {p.title}
+                      </button>
+                      <p>{p.description || "An idea waiting to take shape."}</p>
+                      <div className="card-footer">
+                        <span>
+                          {p.players.filter((x) => x.team !== "cone").length}{" "}
+                          players · {p.movements.length} movements
+                        </span>
+                        <div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={!ready}
+                            aria-label={"Duplicate " + p.title}
+                            onClick={() => duplicate(p)}
+                          >
+                            <Copy />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={!ready}
+                            aria-label={"Delete " + p.title}
+                            onClick={() =>
+                              setDeleting({
+                                type: "play",
+                                id: p.id,
+                                title: p.title,
+                              })
+                            }
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+                {!query && (
+                  <button
+                    className="new-play-card"
+                    onClick={() => setNewOpen(true)}
+                    disabled={!ready || data.plays.length >= 100}
+                  >
+                    <Plus size={28} />
+                    <strong>Leave room for another idea.</strong>
+                    <span>Start with a blank pitch</span>
+                  </button>
+                )}
+              </div>
+              {!filtered.length && query && (
+                <div className="empty-state">
+                  <Search size={28} />
+                  <h2>No plays found.</h2>
+                  <p>Try a different name or category.</p>
+                  <Button variant="outline" onClick={() => setQuery("")}>
+                    Clear search
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="session">
+              <Sessions
+                sessions={data.sessions}
+                plays={data.plays}
+                disabled={!ready}
+                onChange={(s) =>
+                  setData((d) => ({
+                    ...d,
+                    sessions: d.sessions.map((x) => (x.id === s.id ? s : x)),
+                  }))
+                }
+                onNew={newSession}
+                onDelete={(id) =>
+                  setDeleting({
+                    type: "session",
+                    id,
+                    title:
+                      data.sessions.find((s) => s.id === id)?.title ??
+                      "Session",
+                  })
+                }
+                onDuplicate={duplicateSession}
+                onPrint={(session) => setPrint({ session })}
+              />
+            </TabsContent>
+          </Tabs>
+          <footer>
+            <span>THINK IT. DRAW IT. PLAY IT.</span>
+            <span>
+              Made for the moments before the whistle.
+              <ArrowUpRight size={13} />
+            </span>
+          </footer>
+        </main>
+        <input
+          ref={importInput}
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          aria-label="Import Touchline backup file"
+          onChange={(e) => void importBackup(e.target.files?.[0])}
+        />
+        <Dialog open={newOpen} onOpenChange={setNewOpen}>
+          <DialogContent>
+            <DialogTitle>A fresh page.</DialogTitle>
+            <DialogDescription>
+              Give the idea a name. You can always change it later.
+            </DialogDescription>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (newName.trim()) createPlay(newName);
+              }}
+              className="new-play-form"
+            >
+              <label htmlFor="new-play-name">Play name</label>
+              <Input
+                id="new-play-name"
+                autoFocus
+                placeholder="Something worth trying"
+                value={newName}
+                maxLength={100}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+              <Button type="submit" disabled={!newName.trim() || !ready}>
+                Open the drawing board
+                <ArrowUpRight />
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+          <DialogContent className="help-dialog">
+            <DialogTitle>A little room to think.</DialogTitle>
+            <DialogDescription>
+              Everything starts on the pitch.
+            </DialogDescription>
+            <div className="help-steps">
+              <p>
+                <b>01 · Set the scene.</b> Drag players, or choose Attacker,
+                Defender or Cone and tap the pitch. Select a player to change
+                their label or starting ball.
+              </p>
+              <p>
+                <b>02 · Give it movement.</b> Choose Run, select a player, and
+                tap the pitch to draw a route. Keep tapping to extend it. Choose
+                Pass and tap the next receiver.
+              </p>
+              <p>
+                <b>03 · Play it through.</b> Use playback or scrub the timeline.
+                Passes chain in order; runs start together and extend in
+                two-second legs. Duplicate a play to explore a variation.
+              </p>
+              <p>
+                <b>04 · Take it outside.</b> Add plays to a session, adjust the
+                timing, and open the pitch-side timer. Print a plan or save it
+                as PDF through your browser.
+              </p>
+              <p>
+                <b>Your notebook is yours.</b> Changes save to your signed-in
+                account. Backups download all your plays and sessions; importing
+                adds copies. Use SVG export for a clean diagram.
+              </p>
+              <p>
+                <b>Keyboard.</b> Tab through the controls. Enter selects a
+                player; arrow keys move them. Position fields work without
+                dragging. Press ? to return here.
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <AlertDialog
+          open={!!deleting}
+          onOpenChange={(v) => {
+            if (!v) setDeleting(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove “{deleting?.title}”?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleting?.type === "play"
+                  ? "Its session blocks will keep their notes and timing, with the diagram link removed."
+                  : "This removes the session plan. Your plays stay in the playbook."}{" "}
+                You can undo immediately afterwards.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it</AlertDialogCancel>
+              <AlertDialogAction onClick={remove}>Remove</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <Dialog
+          open={!!print}
+          onOpenChange={(open) => {
+            if (!open) setPrint(null);
+          }}
+        >
+          <DialogContent className="print-dialog">
+            <DialogTitle>Ready for the touchline.</DialogTitle>
+            <DialogDescription>
+              Review the card below, then print or save it as a PDF.
+            </DialogDescription>
+            <div className="print-toolbar">
+              <Button onClick={() => window.print()}>Print / Save PDF</Button>
+            </div>
+            <div className="print-preview">
+              <PrintDocument selection={print} data={data} />
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Toaster position="bottom-center" theme="light" />
+      </div>
+      {print && (
+        <div className="print-surface">
+          <PrintDocument selection={print} data={data} />
+        </div>
+      )}
+    </>
+  );
+}
+function PrintPlay({ play }: { play: Play }) {
+  return (
+    <>
+      <p className="print-category">{play.category}</p>
+      <h1>{play.title}</h1>
+      <p>{play.description}</p>
+      <div className="print-play-pitch">
+        <Pitch play={play} />
+      </div>
+      <h2>Coaching cues</h2>
+      <p className="print-notes">
+        {play.cues || "Make a note of what you notice."}
+      </p>
+      <p className="print-key">
+        Solid line: run · Dotted line: pass · Attack travels toward the try
+        line.
+      </p>
+    </>
+  );
+}
+
+function PrintDocument({
+  selection,
+  data,
+}: {
+  selection: { play?: Play; session?: Session } | null;
+  data: NotebookData;
+}) {
+  if (!selection) return null;
+  return (
+    <>
+      <div className="print-brand">
+        touchline <span>THE RUGBY NOTEBOOK</span>
+      </div>
+      {selection.play ? (
+        <PrintPlay play={selection.play} />
+      ) : (
+        selection.session && (
+          <>
+            <h1>{selection.session.title}</h1>
+            <p>
+              {selection.session.date || "Date to be decided"} ·{" "}
+              {selection.session.players} players ·{" "}
+              {selection.session.blocks.reduce((n, b) => n + b.minutes, 0)}{" "}
+              minutes
+            </p>
+            {selection.session.blocks.map((b, i) => {
+              const linked = data.plays.find((p) => p.id === b.playId);
+              return (
+                <section key={b.id} className="print-block">
+                  <h2>
+                    {String(i + 1).padStart(2, "0")} · {b.title}
+                    <span>{b.minutes} min</span>
+                  </h2>
+                  <div className="print-block-body">
+                    {linked && <Pitch play={linked} mini />}
+                    <div>
+                      <p className="print-notes">{b.notes}</p>
+                      <p>
+                        <b>Equipment:</b> {b.equipment || "—"}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+          </>
+        )
+      )}
+    </>
+  );
+}

@@ -1,0 +1,20 @@
+{
+  "format": "touchline-notebook",
+  "version": 1,
+  "data": {
+    "plays": [
+      {
+        "id": "import-verification",
+        "title": "Import verification",
+        "category": "Skills",
+        "description": "Temporary import test.",
+        "cues": "",
+        "players": [],
+        "movements": [],
+        "ballId": "",
+        "updatedAt": "2026-09-15T00:00:00.000Z"
+      }
+    ],
+    "sessions": []
+  }
+}

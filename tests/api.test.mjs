@@ -1,0 +1,65 @@
+import assert from "node:assert/strict";
+const base = process.env.TOUCHLINE_TEST_URL ?? "http://localhost:5178";
+if (!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(base))
+  throw new Error("Integration test is restricted to a local preview.");
+const login = await fetch(base + "/signin-with-chatgpt?return_to=/", {
+  redirect: "manual",
+});
+const cookie = login.headers
+  .getSetCookie()
+  .map((s) => s.split(";")[0])
+  .join("; ");
+assert.ok(cookie, "Local preview auth cookie");
+const headers = {
+  Cookie: cookie,
+  "Content-Type": "application/json",
+  Origin: base,
+};
+const read = async () => {
+  const r = await fetch(base + "/api/notebook", {
+    headers: { Cookie: cookie },
+  });
+  assert.equal(r.status, 200);
+  return r.json();
+};
+const original = await read();
+let revision = original.revision;
+const put = async (data, rev = revision, extra = {}) =>
+  fetch(base + "/api/notebook", {
+    method: "PUT",
+    headers: { ...headers, ...extra },
+    body: JSON.stringify({ revision: rev, data }),
+  });
+try {
+  const unauthorized = await fetch(base + "/api/notebook");
+  assert.equal(unauthorized.status, 401);
+  const invalid = structuredClone(original.data);
+  invalid.plays[0].players[0].x = 900;
+  assert.equal((await put(invalid)).status, 400);
+  assert.equal(
+    (
+      await put(original.data, revision, {
+        Origin: "https://untrusted.invalid",
+      })
+    ).status,
+    403,
+  );
+  const changed = structuredClone(original.data);
+  changed.plays[0].description += " [API verification]";
+  const response = await put(changed);
+  assert.equal(response.status, 200);
+  revision = (await response.json()).revision;
+  assert.equal(
+    (await read()).data.plays[0].description,
+    changed.plays[0].description,
+  );
+  assert.equal((await put(original.data, revision - 1)).status, 409);
+  assert.equal((await read()).revision, revision);
+  console.log(
+    "PASS: authentication, validation, origin checks, durable roundtrip, and stale-write rejection.",
+  );
+} finally {
+  const restore = await put(original.data);
+  assert.equal(restore.status, 200, "Restore the original local notebook");
+  console.log("Restored original local notebook.");
+}
