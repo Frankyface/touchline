@@ -73,7 +73,7 @@ export async function PUT(request: Request) {
       return reply(
         {
           error:
-            "This notebook changed on another device. Download your edits, then reload the saved version.",
+            "This notebook changed on another device. Keep your edits as recovery copies to preserve both versions.",
         },
         409,
       );

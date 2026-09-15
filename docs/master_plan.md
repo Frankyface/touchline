@@ -20,3 +20,9 @@ See [agent plan](agent_plan.md). Root owns Site source and integration. Read-onl
 
 ## Token Usage — Entire Project
 Unknown. No authoritative task-level token telemetry exposed; child usage and final response tail unavailable. See [ledger](token_usage.md). No token budget was requested.
+
+## Research update scope
+
+The user requested deep product research, improvements and saving the work to `https://github.com/Frankyface/touchline`. The original release was pushed first. Primary-source findings and their implementation are recorded in [product research](product-research.md).
+
+Implemented: reusable starters; precise movement correction and mirroring; presentation/player focus; library retrieval; direct play-to-session handoff; purpose/setup/adaptations; equipment overview; contextual coach mode with paused-place retention; reflection and next-session reuse; loss-avoiding conflict recovery. Relevant tests, API integration, production build and two source reviews passed. Publication receipts identify the exact deployed source. No additional interview, subscription, team administration or background automation is part of this update.

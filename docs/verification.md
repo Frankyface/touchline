@@ -1,6 +1,16 @@
 # Verification evidence
 
-## Automated
+## Research update — 15 September 2026
+
+- All 19 model/workflow tests passed. New coverage includes independent starters, mirrored intermediate movement/ball positions, carrier no-op, movement validity and fractional endpoints, session reuse/reflection, equipment deduplication, selective block undo, recovery reference remapping, canonical equality/retry, wall-clock timing and backward-compatible optional fields.
+- Final TypeScript check passed with incremental caching disabled.
+- Final production Vinext Worker build passed. The official build wrapper encountered the previously documented Windows npm shim failure; the project's direct `node scripts/run-framework.mjs build` equivalent completed successfully.
+- Local API integration passed: authentication/origin/input rejection, new coaching-field persistence, stale revision rejection and recovery-copy roundtrip. The test restored the original local notebook.
+- Two independent read-only reviewers approved the revised source. Their identified route-form precision/bounds defect and recovery key-order comparison defect were fixed and received regression coverage.
+- No new browser QA was performed for this update. New visual layout and interactions still need a browser usability pass; earlier release evidence below does not substitute for that. No claim of full accessibility conformance is made.
+- Optional fields remain within the existing D1 document; no SQL migration was added. Existing notebook/backup records remain valid.
+
+## Initial release — automated
 - Seven meaningful model tests: seed/reference validation; stationary/interpolated/completed runs; ball handoffs; continuous multi-leg loops; malformed backups; incomplete drafts; operation-local deletion undo preserving later edits.
 - TypeScript `tsc --noEmit`: passed.
 - Production Vinext Worker build: passed after final print-preview and print-style changes.
@@ -8,7 +18,7 @@
 - Local API integration: authentication rejection, invalid input rejection, cross-origin rejection, durable write/read, stale revision 409, original state restored: passed.
 - Initial D1 migration applied successfully locally and during publication; hosted GET, save and reload succeeded. See `delivery.md`.
 
-## Actual browser interactions
+## Initial release — actual browser interactions
 - Desktop 1440×1000 and mobile 390×844 rendered and visually inspected; mobile document width stayed within viewport.
 - Duplicate, rename, clear required title, complete it after debounce: resumed saving without sticky failure.
 - Keyboard move X 30→31, undo→30; pointer drag→35/65; reload preserved coordinates.
@@ -21,7 +31,7 @@
 - Print card preview visually inspected on mobile; session print content included all five blocks and linked diagrams.
 - WebMCP read returned real notebook; valid open changed visible play; invalid ID and extra-field inputs intentionally rejected.
 
-## Review
+## Initial release — review
 Independent read-only reviewer `project_signals` found and root fixed: sticky validation save failure; cone deletion clearing passes; keyboard/drag undo boundaries; overlapping load/save race; whole-notebook deletion undo; stale pass sender. Reviewer approved the corrected integrated source with no blocking defects and independently passed TypeScript. Final print arrow contrast was improved following the review.
 
 ## Honest limits

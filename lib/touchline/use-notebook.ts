@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { initialData, type NotebookData } from "./model";
+import { initialData, mergeRecovery, type NotebookData } from "./model";
 import { notebookSchema } from "./validation";
 
 export function useNotebook() {
@@ -18,7 +18,8 @@ export function useNotebook() {
     loadController = useRef<AbortController | null>(null),
     inFlight = useRef<Promise<void> | null>(null);
   latest.current = data;
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: "replace" | "recover" = "replace") => {
+    const hadData = saved.current !== "";
     const gen = ++generation.current;
     loadController.current?.abort();
     const controller = new AbortController();
@@ -43,13 +44,30 @@ export function useNotebook() {
       if (!r.ok) throw new Error(body.error);
       const valid = notebookSchema.parse(body.data);
       if (gen !== generation.current || !mounted.current) return;
+      let next: NotebookData = valid;
+      if (mode === "recover") {
+        if (!notebookSchema.safeParse(latest.current).success)
+          throw new Error(
+            "Complete required fields before recovering your edits. Your draft is still here.",
+          );
+        const merged = mergeRecovery(valid, latest.current);
+        if (!notebookSchema.safeParse(merged).success)
+          throw new Error(
+            "Recovery copies would exceed the notebook limits. Your draft is still here; download a backup before making room.",
+          );
+        next = merged;
+      }
       revision.current = body.revision;
       saved.current = JSON.stringify(valid);
-      latest.current = valid;
+      latest.current = next;
       conflict.current = false;
-      setData(valid);
+      setData(next);
       setReady(true);
-      setStatus("All changes saved");
+      setStatus(
+        JSON.stringify(next) === saved.current
+          ? "All changes saved"
+          : "Unsaved changes",
+      );
       setError("");
     } catch (e) {
       if (
@@ -60,6 +78,7 @@ export function useNotebook() {
         return;
       setError(e instanceof Error ? e.message : "Unable to load notebook");
       setStatus("Could not connect");
+      if (hadData) setReady(true);
     } finally {
       if (gen === generation.current) loading.current = false;
     }
@@ -154,6 +173,7 @@ export function useNotebook() {
     error,
     canRetry: !conflict.current,
     reload: load,
+    recover: () => load("recover"),
     retry: () => {
       if (conflict.current) return;
       if (ready) void flush();

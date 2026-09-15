@@ -22,6 +22,11 @@ export type Play = {
   category: string;
   description: string;
   cues: string;
+  setup?: string;
+  equipment?: string;
+  easier?: string;
+  challenge?: string;
+  favorite?: boolean;
   players: Player[];
   movements: Movement[];
   ballId: string;
@@ -34,6 +39,9 @@ export type Block = {
   notes: string;
   equipment: string;
   playId?: string;
+  setup?: string;
+  easier?: string;
+  challenge?: string;
 };
 export type Session = {
   id: string;
@@ -42,6 +50,11 @@ export type Session = {
   players: number;
   targetMinutes: number;
   blocks: Block[];
+  focus?: string;
+  success?: string;
+  review?: { worked: string; nextTime: string };
+  completedAt?: string;
+  carriedForward?: string;
 };
 export type NotebookData = { plays: Play[]; sessions: Session[] };
 export function restoreRemoved(
@@ -113,6 +126,137 @@ export const clamp = (v: number, min = 4, max = 96) =>
   Math.max(min, Math.min(max, v));
 export const totalTime = (play: Play) =>
   Math.max(6, ...play.movements.map((m) => m.start + m.duration));
+export function mirrorPlay(play: Play): Play {
+  return {
+    ...play,
+    players: play.players.map((p) => ({ ...p, x: 100 - p.x })),
+    movements: play.movements.map((m) => ({ ...m, x: 100 - m.x })),
+  };
+}
+export function setStartingCarrier(play: Play, id: string): Play {
+  if (
+    id === play.ballId ||
+    !play.players.some((p) => p.id === id && p.team !== "cone")
+  )
+    return play;
+  return {
+    ...play,
+    ballId: id,
+    movements: play.movements.filter((m) => m.kind !== "pass"),
+  };
+}
+export function blockFromPlay(play: Play): Block {
+  return {
+    id: uid(),
+    title: play.title,
+    minutes: 10,
+    notes: play.cues,
+    equipment: play.equipment ?? "",
+    playId: play.id,
+    setup: play.setup ?? play.description,
+    easier: play.easier ?? "",
+    challenge: play.challenge ?? "",
+  };
+}
+export function repeatSession(session: Session): Session {
+  return {
+    ...structuredClone(session),
+    id: uid(),
+    title: (session.title + " — next session").slice(0, 100),
+    date: "",
+    completedAt: undefined,
+    review: undefined,
+    carriedForward: session.review?.nextTime || session.carriedForward || "",
+    blocks: session.blocks.map((b) => ({ ...b, id: uid() })),
+  };
+}
+export function equipmentList(session: Session): string[] {
+  // Keep each entry intact: free text is not a safe basis for adding quantities.
+  const seen = new Set<string>();
+  return session.blocks
+    .flatMap((b) => b.equipment.split(/[\n·;]/))
+    .map((s) => s.trim())
+    .filter((s) => {
+      const key = s.toLowerCase();
+      if (!s || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+export function blockOffsets(session: Session): number[] {
+  let elapsed = 0;
+  return session.blocks.map((b) => {
+    const start = elapsed;
+    elapsed += b.minutes;
+    return start;
+  });
+}
+export function restoreBlock(
+  session: Session,
+  block: Block,
+  index: number,
+): Session {
+  if (
+    session.blocks.length >= 50 ||
+    session.blocks.some((b) => b.id === block.id)
+  )
+    return session;
+  const blocks = [...session.blocks];
+  blocks.splice(Math.min(index, blocks.length), 0, block);
+  return { ...session, blocks };
+}
+export function mergeRecovery(
+  saved: NotebookData,
+  draft: NotebookData,
+): NotebookData {
+  // JSON key order is not record identity; parsing and optional fields can reorder it.
+  const signature = (record: unknown) => JSON.stringify(record, (_key, value) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]))
+      : value);
+  const ids = new Map<string, string>();
+  const additions: Play[] = [];
+  for (const play of draft.plays) {
+    const original = saved.plays.find((p) => p.id === play.id);
+    if (signature(original) === signature(play)) {
+      ids.set(play.id, play.id);
+      continue;
+    }
+    if (!original) { ids.set(play.id,play.id); additions.push(structuredClone(play)); continue; }
+    const id = uid();
+    ids.set(play.id, id);
+    additions.push({
+      ...structuredClone(play),
+      id,
+      title: (play.title + " (recovered)").slice(0, 100),
+    });
+  }
+  const sessions = draft.sessions.flatMap((session) => {
+    const original = saved.sessions.find((s) => s.id === session.id);
+    const linksChanged = session.blocks.some(
+      (b) => b.playId && ids.get(b.playId) !== b.playId,
+    );
+    if (!linksChanged && signature(original) === signature(session))
+      return [];
+    if (!original) return [{...structuredClone(session),blocks:session.blocks.map(b=>({...b,playId:b.playId ? ids.get(b.playId) : undefined}))}];
+    return [
+      {
+        ...structuredClone(session),
+        id: uid(),
+        title: (session.title + " (recovered)").slice(0, 100),
+        blocks: session.blocks.map((b) => ({
+          ...b,
+          id: uid(),
+          playId: b.playId ? ids.get(b.playId) : undefined,
+        })),
+      },
+    ];
+  });
+  return {
+    plays: [...saved.plays, ...additions],
+    sessions: [...saved.sessions, ...sessions],
+  };
+}
 export function positionAt(play: Play, playerId: string, time: number) {
   const player = play.players.find((p) => p.id === playerId);
   let x = player?.x ?? 50,

@@ -1,20 +1,14 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
-  Check,
   Clock3,
   Copy,
-  Pause,
   Play as PlayIcon,
   Plus,
   Printer,
-  RotateCcw,
-  SkipForward,
   Trash2,
-  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,16 +21,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
   uid,
   type Play,
   type Session,
   type Block,
+  blockFromPlay,
+  blockOffsets,
+  equipmentList,
 } from "@/lib/touchline/model";
 import { Pitch } from "./pitch";
 
@@ -49,6 +40,11 @@ export function Sessions({
   onDuplicate,
   onPrint,
   disabled,
+  selected,
+  onSelect,
+  onRun,
+  activeRun,
+  onRemoveBlock,
 }: {
   sessions: Session[];
   plays: Play[];
@@ -58,13 +54,13 @@ export function Sessions({
   onDuplicate: (s: Session) => void;
   onPrint: (s: Session) => void;
   disabled: boolean;
+  selected: string;
+  onSelect: (id: string) => void;
+  onRun: (s: Session) => void;
+  activeRun?: string;
+  onRemoveBlock: (sessionId: string, blockId: string) => void;
 }) {
-  const [selected, setSelected] = useState(sessions[0]?.id ?? ""),
-    [timer, setTimer] = useState(false);
   const session = sessions.find((s) => s.id === selected) ?? sessions[0];
-  useEffect(() => {
-    if (sessions.length) setSelected(sessions.at(-1)!.id);
-  }, [sessions.length]);
   if (!session)
     return (
       <div className="empty-state">
@@ -79,6 +75,8 @@ export function Sessions({
     );
   const total = session.blocks.reduce((sum, b) => sum + b.minutes, 0);
   const difference = session.targetMinutes - total;
+  const offsets = blockOffsets(session);
+  const equipment = equipmentList(session);
   const update = (patch: Partial<Session>) =>
     onChange({ ...session, ...patch });
   const blockUpdate = (id: string, patch: Partial<Block>) =>
@@ -90,14 +88,15 @@ export function Sessions({
     update({
       blocks: [
         ...session.blocks,
-        {
-          id: uid(),
-          title: play?.title ?? "New practice block",
-          minutes: 10,
-          notes: play?.cues ?? "",
-          equipment: "Balls · cones",
-          ...(play ? { playId: play.id } : {}),
-        },
+        play
+          ? blockFromPlay(play)
+          : {
+              id: uid(),
+              title: "New practice block",
+              minutes: 10,
+              notes: "",
+              equipment: "Balls · cones",
+            },
       ],
     });
   };
@@ -130,14 +129,14 @@ export function Sessions({
             className={
               "play-list-item " + (s.id === session.id ? "active" : "")
             }
-            onClick={() => setSelected(s.id)}
+            onClick={() => onSelect(s.id)}
           >
             <CalendarDays size={17} />
             <span>
               <strong>{s.title}</strong>
               <small>
                 {s.blocks.reduce((v, b) => v + b.minutes, 0)} min ·{" "}
-                {s.blocks.length} blocks
+                {s.blocks.length} blocks{s.completedAt ? " · Delivered" : ""}
               </small>
             </span>
           </button>
@@ -158,7 +157,7 @@ export function Sessions({
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Duplicate session"
+              aria-label="Plan next session from this plan"
               disabled={disabled}
               onClick={() => onDuplicate(session)}
             >
@@ -236,6 +235,32 @@ export function Sessions({
             />
           </label>
         </fieldset>
+        {session.carriedForward && (
+          <div className="carry-note">
+            <strong>From last time</strong>
+            <p>{session.carriedForward}</p>
+          </div>
+        )}
+        <fieldset disabled={disabled} className="session-purpose two-fields">
+          <label>
+            Session focus
+            <Input
+              value={session.focus ?? ""}
+              maxLength={500}
+              placeholder="What do you want players to explore?"
+              onChange={(e) => update({ focus: e.target.value })}
+            />
+          </label>
+          <label>
+            Look for
+            <Input
+              value={session.success ?? ""}
+              maxLength={500}
+              placeholder="What would you see or hear if it’s working?"
+              onChange={(e) => update({ success: e.target.value })}
+            />
+          </label>
+        </fieldset>
         <div className="session-budget">
           <div>
             <strong>{total}</strong>
@@ -249,11 +274,13 @@ export function Sessions({
                 : Math.abs(difference) + " minutes over"}
           </span>
           <Button
-            onClick={() => setTimer(true)}
-            disabled={!session.blocks.length}
+            onClick={() => onRun(session)}
+            disabled={!session.blocks.length || disabled}
           >
             <PlayIcon />
-            Start session
+            {activeRun === session.id
+              ? "Continue coaching"
+              : "Coach this session"}
           </Button>
         </div>
         <div
@@ -284,7 +311,11 @@ export function Sessions({
               <article className="session-block" key={b.id}>
                 <div className="block-main">
                   <span className="block-index">
-                    {String(i + 1).padStart(2, "0")}
+                    <span>{String(i + 1).padStart(2, "0")}</span>
+                    <small>
+                      {String(Math.floor(offsets[i] / 60)).padStart(2, "0")}:
+                      {String(offsets[i] % 60).padStart(2, "0")}
+                    </small>
                   </span>
                   <div className="block-info">
                     <Input
@@ -345,11 +376,7 @@ export function Sessions({
                       size="icon"
                       aria-label={"Remove block " + (i + 1)}
                       disabled={disabled}
-                      onClick={() =>
-                        update({
-                          blocks: session.blocks.filter((x) => x.id !== b.id),
-                        })
-                      }
+                      onClick={() => onRemoveBlock(session.id, b.id)}
                     >
                       <Trash2 />
                     </Button>
@@ -364,6 +391,43 @@ export function Sessions({
                       </div>
                     )}
                     <fieldset disabled={disabled}>
+                      <label className="field-label">Linked diagram</label>
+                      <Select
+                        value={b.playId ?? "none"}
+                        onValueChange={(id) =>
+                          blockUpdate(b.id, {
+                            playId: id === "none" ? undefined : id,
+                          })
+                        }
+                      >
+                        <SelectTrigger aria-label={`Block ${i + 1} diagram`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No diagram</SelectItem>
+                          {plays.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="form-note">
+                        Diagram changes follow the playbook. These coaching
+                        notes stay with this session.
+                      </p>
+                      <label className="field-label">
+                        Setup
+                        <Textarea
+                          aria-label={`Block ${i + 1} setup`}
+                          value={b.setup ?? ""}
+                          maxLength={1000}
+                          rows={2}
+                          onChange={(e) =>
+                            blockUpdate(b.id, { setup: e.target.value })
+                          }
+                        />
+                      </label>
                       <label className="field-label">
                         Coaching notes
                         <Textarea
@@ -387,6 +451,32 @@ export function Sessions({
                           }
                         />
                       </label>
+                      <div className="two-fields">
+                        <label className="field-label">
+                          Make easier
+                          <Textarea
+                            aria-label={`Block ${i + 1} make easier`}
+                            value={b.easier ?? ""}
+                            maxLength={1000}
+                            rows={2}
+                            onChange={(e) =>
+                              blockUpdate(b.id, { easier: e.target.value })
+                            }
+                          />
+                        </label>
+                        <label className="field-label">
+                          Add challenge
+                          <Textarea
+                            aria-label={`Block ${i + 1} add challenge`}
+                            value={b.challenge ?? ""}
+                            maxLength={1000}
+                            rows={2}
+                            onChange={(e) =>
+                              blockUpdate(b.id, { challenge: e.target.value })
+                            }
+                          />
+                        </label>
+                      </div>
                     </fieldset>
                   </div>
                 </details>
@@ -394,6 +484,129 @@ export function Sessions({
             );
           })}
         </div>
+        {sessions.some((s) => s.id !== session.id && s.blocks.length) && (
+          <Select
+            value=""
+            disabled={disabled || session.blocks.length >= 50}
+            onValueChange={(value) => {
+              const source = sessions
+                .flatMap((s) =>
+                  s.blocks.map((b) => ({ key: s.id + ":" + b.id, block: b })),
+                )
+                .find((item) => item.key === value)?.block;
+              if (source)
+                update({
+                  blocks: [
+                    ...session.blocks,
+                    { ...structuredClone(source), id: uid() },
+                  ],
+                });
+            }}
+          >
+            <SelectTrigger
+              className="reuse-block"
+              aria-label="Reuse a block from a previous session"
+            >
+              <SelectValue placeholder="Reuse a block from a previous session" />
+            </SelectTrigger>
+            <SelectContent>
+              {sessions
+                .filter((s) => s.id !== session.id)
+                .flatMap((s) =>
+                  s.blocks.map((b) => (
+                    <SelectItem
+                      key={s.id + ":" + b.id}
+                      value={s.id + ":" + b.id}
+                    >
+                      {s.title} · {b.title}
+                    </SelectItem>
+                  )),
+                )}
+            </SelectContent>
+          </Select>
+        )}
+        {equipment.length > 0 && (
+          <section className="equipment-summary">
+            <h3>Bring to the pitch</h3>
+            <ul>
+              {equipment.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <p className="form-note">
+              From your block notes; quantities are not added together.
+            </p>
+          </section>
+        )}
+        <details
+          className="session-reflection"
+          open={session.completedAt ? true : undefined}
+        >
+          <summary>
+            {session.completedAt
+              ? "Delivered · reflection"
+              : "After the session"}
+          </summary>
+          <div className="two-fields">
+            <label>
+              What worked?
+              <Textarea
+                value={session.review?.worked ?? ""}
+                maxLength={2000}
+                rows={3}
+                disabled={disabled}
+                onChange={(e) =>
+                  update({
+                    review: {
+                      worked: e.target.value,
+                      nextTime: session.review?.nextTime ?? "",
+                    },
+                  })
+                }
+              />
+            </label>
+            <label>
+              Change or revisit next time
+              <Textarea
+                value={session.review?.nextTime ?? ""}
+                maxLength={2000}
+                rows={3}
+                disabled={disabled}
+                onChange={(e) =>
+                  update({
+                    review: {
+                      worked: session.review?.worked ?? "",
+                      nextTime: e.target.value,
+                    },
+                  })
+                }
+              />
+            </label>
+          </div>
+          <div className="reflection-actions">
+            <Button
+              variant="outline"
+              disabled={disabled || sessions.length >= 50}
+              onClick={() => onDuplicate(session)}
+            >
+              <Copy />
+              Plan next session
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={disabled}
+              onClick={() =>
+                update({
+                  completedAt: session.completedAt
+                    ? undefined
+                    : new Date().toISOString(),
+                })
+              }
+            >
+              {session.completedAt ? "Mark as planned" : "Mark as delivered"}
+            </Button>
+          </div>
+        </details>
         <div className="add-block">
           <Button
             variant="outline"
@@ -425,149 +638,6 @@ export function Sessions({
           non-contact, shadow defence.
         </p>
       </section>
-      <SessionTimer
-        session={session}
-        plays={plays}
-        open={timer}
-        onClose={() => setTimer(false)}
-      />
     </div>
-  );
-}
-
-function SessionTimer({
-  session,
-  plays,
-  open,
-  onClose,
-}: {
-  session: Session;
-  plays: Play[];
-  open: boolean;
-  onClose: () => void;
-}) {
-  const [index, setIndex] = useState(0),
-    [remaining, setRemaining] = useState(0),
-    [running, setRunning] = useState(false);
-  const deadline = useRef(0);
-  const block = session.blocks[index];
-  const linked = plays.find((p) => p.id === block?.playId);
-  useEffect(() => {
-    if (open) {
-      setIndex(0);
-      setRemaining((session.blocks[0]?.minutes ?? 0) * 60);
-      setRunning(false);
-    }
-  }, [open, session.id]);
-  useEffect(() => {
-    if (!running || !open) return;
-    const tick = () => {
-      const seconds = Math.max(
-        0,
-        Math.ceil((deadline.current - Date.now()) / 1000),
-      );
-      setRemaining(seconds);
-      if (seconds === 0) setRunning(false);
-    };
-    tick();
-    const interval = setInterval(tick, 250);
-    return () => clearInterval(interval);
-  }, [running, open]);
-  const toggle = () => {
-    if (running) {
-      setRemaining(
-        Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000)),
-      );
-      setRunning(false);
-    } else {
-      deadline.current = Date.now() + remaining * 1000;
-      setRunning(true);
-    }
-  };
-  const next = () => {
-    if (index + 1 >= session.blocks.length) {
-      setRunning(false);
-      setIndex(session.blocks.length);
-      return;
-    }
-    setIndex(index + 1);
-    setRemaining(session.blocks[index + 1].minutes * 60);
-    setRunning(false);
-  };
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) {
-          setRunning(false);
-          onClose();
-        }
-      }}
-    >
-      <DialogContent className="timer-dialog">
-        <DialogTitle>{block ? block.title : "Session complete"}</DialogTitle>
-        <DialogDescription>
-          {session.title} ·{" "}
-          {block
-            ? "Block " + (index + 1) + " of " + session.blocks.length
-            : "Good work. Take one idea into the next game."}
-        </DialogDescription>
-        {block ? (
-          <>
-            <div
-              className="timer-face"
-              role="timer"
-              aria-label="Time remaining"
-            >
-              {String(Math.floor(remaining / 60)).padStart(2, "0")}
-              <span>:</span>
-              {String(remaining % 60).padStart(2, "0")}
-            </div>
-            {remaining === 0 && (
-              <p className="timer-complete">
-                Block complete. Ready for the next idea?
-              </p>
-            )}
-            <div className="timer-buttons">
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Reset block timer"
-                onClick={() => {
-                  setRunning(false);
-                  setRemaining(block.minutes * 60);
-                }}
-              >
-                <RotateCcw />
-              </Button>
-              <Button
-                className="timer-main-button"
-                onClick={toggle}
-                disabled={remaining === 0}
-              >
-                {running ? <Pause /> : <PlayIcon />}
-                {running ? "Pause" : "Start timer"}
-              </Button>
-              <Button variant="outline" onClick={next}>
-                <SkipForward />
-                {index + 1 < session.blocks.length ? "Next block" : "Finish"}
-              </Button>
-            </div>
-            <p className="timer-notes">{block.notes}</p>
-            {linked && (
-              <div className="timer-pitch">
-                <Pitch play={linked} mini />
-              </div>
-            )}
-            <p className="timer-equipment">{block.equipment}</p>
-          </>
-        ) : (
-          <div className="timer-finished">
-            <Check size={48} />
-            <Button onClick={onClose}>Back to notebook</Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }

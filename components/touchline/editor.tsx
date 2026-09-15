@@ -17,6 +17,10 @@ import {
   Trash2,
   Undo2,
   Users,
+  CalendarPlus,
+  FlipHorizontal2,
+  Maximize2,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -33,12 +37,16 @@ import {
   clamp,
   uid,
   totalTime,
+  mirrorPlay,
+  setStartingCarrier,
   type Play,
   type Team,
   type Movement,
 } from "@/lib/touchline/model";
 import { downloadFile } from "@/lib/touchline/export";
 import { Pitch } from "./pitch";
+import { MovementEditor } from "./movement-editor";
+import { Presentation } from "./presentation";
 
 type Mode = "select" | "run" | "pass" | "attack" | "defence" | "cone";
 export function Editor({
@@ -46,12 +54,14 @@ export function Editor({
   onChange,
   onDuplicate,
   onPrint,
+  onAddSession,
   disabled = false,
 }: {
   play: Play;
   onChange: (p: Play) => void;
   onDuplicate: () => void;
   onPrint: () => void;
+  onAddSession: () => void;
   disabled?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("select"),
@@ -61,7 +71,9 @@ export function Editor({
     [speed, setSpeed] = useState(1),
     [history, setHistory] = useState<Play[]>([]),
     [future, setFuture] = useState<Play[]>([]),
-    [hint, setHint] = useState("");
+    [hint, setHint] = useState(""),
+    [editingMovement, setEditingMovement] = useState<string | null>(null),
+    [presenting, setPresenting] = useState(false);
   const current = useRef(play);
   current.current = play;
   const dragSnapshot = useRef<Play | null>(null);
@@ -83,6 +95,8 @@ export function Editor({
     setHistory([]);
     setFuture([]);
     setMode("select");
+    setEditingMovement(null);
+    setPresenting(false);
   }, [play.id]);
   useEffect(() => {
     if (!playing) return;
@@ -149,7 +163,6 @@ export function Editor({
   };
   const chooseMode = (m: Mode) => {
     setMode(m);
-    setTime(0);
     setPlaying(false);
     setHint("");
     if (m === "pass") {
@@ -236,7 +249,11 @@ export function Editor({
       const moves = play.movements.filter(
         (m) => m.playerId === selected && m.kind === "run",
       );
-      const start = Math.max(0, ...moves.map((m) => m.start + m.duration));
+      const start = Math.max(
+        time,
+        0,
+        ...moves.map((m) => m.start + m.duration),
+      );
       addMovement({
         id: uid(),
         kind: "run",
@@ -305,14 +322,15 @@ export function Editor({
     );
   };
   const player = play.players.find((p) => p.id === selected);
+  const movement = play.movements.find((m) => m.id === editingMovement);
   const instructions: Record<Mode, string> = {
     select:
       "Drag players to set their starting positions. Arrow keys move a focused player.",
     run: selected
-      ? "Tap the pitch to add the next point of this player’s run."
+      ? `Tap the pitch to extend ${player?.label ?? "this player"}’s run. New legs start at the playhead or after their last run.`
       : "Select a player, then tap the pitch to draw their run.",
     pass: selected
-      ? "Tap a receiver. The next pass starts when the last one finishes."
+      ? `Tap a receiver for ${player?.label ?? "the carrier"}. The pass starts at the playhead or after the last pass.`
       : "Add a player and give them the ball first.",
     attack: "Tap the pitch to add an attacker.",
     defence: "Tap the pitch to add a defender.",
@@ -355,6 +373,27 @@ export function Editor({
               <Printer />
             </Button>
           </div>
+        </div>
+        <div className="board-quick-actions">
+          <Button variant="ghost" onClick={() => setPresenting(true)}>
+            <Maximize2 />
+            Show play
+          </Button>
+          <Button variant="ghost" disabled={disabled} onClick={onAddSession}>
+            <CalendarPlus />
+            Add to session
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => {
+              edit(mirrorPlay(play));
+              setHint("Play mirrored. Undo returns to the original side.");
+            }}
+          >
+            <FlipHorizontal2 />
+            Mirror
+          </Button>
         </div>
         <div
           className="drawing-tools"
@@ -411,8 +450,16 @@ export function Editor({
             selected={selected}
             onPlayer={onPlayer}
             onCanvas={onCanvas}
+            onMovement={
+              !disabled && mode === "select"
+                ? (id) => {
+                    setPlaying(false);
+                    setEditingMovement(id);
+                  }
+                : undefined
+            }
             onNudge={
-              !disabled
+              !disabled && mode === "select" && !playing
                 ? (id, x, y) =>
                     update({
                       players: play.players.map((p) =>
@@ -537,6 +584,46 @@ export function Editor({
             placeholder="One thought per line"
             onChange={(e) => update({ cues: e.target.value })}
           />
+          <details className="practice-details">
+            <summary>Setup & adaptations</summary>
+            <label className="field-label">
+              Setup
+              <Textarea
+                value={play.setup ?? ""}
+                maxLength={1000}
+                rows={3}
+                onChange={(e) => update({ setup: e.target.value })}
+                placeholder="Space, groups and starting positions"
+              />
+            </label>
+            <label className="field-label">
+              Equipment
+              <Input
+                value={play.equipment ?? ""}
+                maxLength={500}
+                onChange={(e) => update({ equipment: e.target.value })}
+                placeholder="Balls · cones · bibs"
+              />
+            </label>
+            <label className="field-label">
+              Make easier
+              <Textarea
+                value={play.easier ?? ""}
+                maxLength={1000}
+                rows={2}
+                onChange={(e) => update({ easier: e.target.value })}
+              />
+            </label>
+            <label className="field-label">
+              Add challenge
+              <Textarea
+                value={play.challenge ?? ""}
+                maxLength={1000}
+                rows={2}
+                onChange={(e) => update({ challenge: e.target.value })}
+              />
+            </label>
+          </details>
           {player && (
             <div className="selection-card">
               <p className="eyebrow">SELECTED {player.team.toUpperCase()}</p>
@@ -599,13 +686,9 @@ export function Editor({
                 <Button
                   variant="outline"
                   className="wide-button"
+                  disabled={play.ballId === selected}
                   onClick={() => {
-                    update({
-                      ballId: selected,
-                      movements: play.movements.filter(
-                        (m) => m.kind !== "pass",
-                      ),
-                    });
+                    edit(setStartingCarrier(play, selected));
                     setHint(
                       "Starting carrier changed. Draw a new pass sequence.",
                     );
@@ -613,7 +696,9 @@ export function Editor({
                 >
                   {play.ballId === selected
                     ? "Starts with the ball"
-                    : "Give starting ball"}
+                    : play.movements.some((m) => m.kind === "pass")
+                      ? "Give ball & clear passes"
+                      : "Give starting ball"}
                 </Button>
               )}
               <Button
@@ -637,46 +722,60 @@ export function Editor({
                 Add a run or pass to bring the idea to life.
               </p>
             ) : (
-              play.movements.map((m, i) => (
-                <div className="movement-row" key={m.id}>
-                  <span className={m.kind === "pass" ? "movement-pass" : ""}>
-                    {m.kind === "pass" ? (
-                      <Send size={14} />
-                    ) : (
-                      <Route size={14} />
-                    )}
-                  </span>
-                  <div>
-                    <strong>
-                      {play.players.find((p) => p.id === m.playerId)?.label}{" "}
-                      {m.kind === "pass"
-                        ? "→ " +
-                          play.players.find((p) => p.id === m.targetId)?.label
-                        : "runs"}
-                    </strong>
-                    <small>
-                      {m.start.toFixed(1)}–{(m.start + m.duration).toFixed(1)}s
-                    </small>
+              [...play.movements]
+                .sort((a, b) => a.start - b.start)
+                .map((m, i) => (
+                  <div className="movement-row" key={m.id}>
+                    <span className={m.kind === "pass" ? "movement-pass" : ""}>
+                      {m.kind === "pass" ? (
+                        <Send size={14} />
+                      ) : (
+                        <Route size={14} />
+                      )}
+                    </span>
+                    <div>
+                      <strong>
+                        {play.players.find((p) => p.id === m.playerId)?.label}{" "}
+                        {m.kind === "pass"
+                          ? "→ " +
+                            play.players.find((p) => p.id === m.targetId)?.label
+                          : "runs"}
+                      </strong>
+                      <small>
+                        {m.start.toFixed(1)}–{(m.start + m.duration).toFixed(1)}
+                        s
+                      </small>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Edit movement ${i + 1}`}
+                      onClick={() => {
+                        setPlaying(false);
+                        setEditingMovement(m.id);
+                      }}
+                    >
+                      <Pencil size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={"Remove movement " + (i + 1)}
+                      onClick={() =>
+                        update({
+                          movements:
+                            m.kind === "pass"
+                              ? play.movements.filter(
+                                  (x) => x.kind !== "pass" || x.start < m.start,
+                                )
+                              : play.movements.filter((x) => x.id !== m.id),
+                        })
+                      }
+                    >
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={"Remove movement " + (i + 1)}
-                    onClick={() =>
-                      update({
-                        movements:
-                          m.kind === "pass"
-                            ? play.movements.filter(
-                                (x) => x.kind !== "pass" || x.start < m.start,
-                              )
-                            : play.movements.filter((x) => x.id !== m.id),
-                      })
-                    }
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              ))
+                ))
             )}
           </div>
           <p className="inspector-note">
@@ -685,6 +784,24 @@ export function Editor({
           </p>
         </fieldset>
       </aside>
+      {movement && (
+        <MovementEditor
+          key={movement.id}
+          play={play}
+          movement={movement}
+          onApply={(next) =>
+            update({
+              movements: play.movements.map((m) =>
+                m.id === next.id ? next : m,
+              ),
+            })
+          }
+          onClose={() => setEditingMovement(null)}
+        />
+      )}
+      {presenting && (
+        <Presentation play={play} onClose={() => setPresenting(false)} />
+      )}
     </div>
   );
 }

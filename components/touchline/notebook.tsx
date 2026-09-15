@@ -16,9 +16,20 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  Star,
+  CalendarPlus,
+  Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -42,6 +53,10 @@ import {
   firstPlay,
   uid,
   restoreRemoved,
+  restoreBlock,
+  blockFromPlay,
+  repeatSession,
+  equipmentList,
   type Play,
   type Session,
   type NotebookData,
@@ -52,16 +67,31 @@ import { downloadFile } from "@/lib/touchline/export";
 import { Pitch } from "./pitch";
 import { Editor } from "./editor";
 import { Sessions } from "./sessions";
+import { SessionRunner } from "./session-runner";
+import { starters, createFromStarter } from "@/lib/touchline/templates";
 
 type DeleteItem = { type: "play" | "session"; id: string; title: string };
 export default function Notebook() {
-  const { data, setData, ready, status, error, canRetry, retry, reload } =
+  const { data, setData, ready, status, error, canRetry, retry, recover } =
     useNotebook();
   const [tab, setTab] = useState("board"),
     [selected, setSelected] = useState(firstPlay.id),
     [query, setQuery] = useState(""),
     [newOpen, setNewOpen] = useState(false),
     [newName, setNewName] = useState(""),
+    [starterId, setStarterId] = useState("overload"),
+    [categoryFilter, setCategoryFilter] = useState("all"),
+    [favoritesOnly, setFavoritesOnly] = useState(false),
+    [sort, setSort] = useState("recent"),
+    [selectedSession, setSelectedSession] = useState(""),
+    [addingPlay, setAddingPlay] = useState<Play | null>(null),
+    [addTarget, setAddTarget] = useState("new"),
+    [runner, setRunner] = useState<{
+      session: Session;
+      plays: Play[];
+      open: boolean;
+    } | null>(null),
+    [switchRun, setSwitchRun] = useState<Session | null>(null),
     [helpOpen, setHelpOpen] = useState(false),
     [deleting, setDeleting] = useState<DeleteItem | null>(null),
     [print, setPrint] = useState<{ play?: Play; session?: Session } | null>(
@@ -71,6 +101,109 @@ export default function Notebook() {
   const current = useRef(data);
   current.current = data;
   const play = data.plays.find((p) => p.id === selected) ?? data.plays[0];
+  const starter = starters.find((s) => s.id === starterId) ?? starters[0];
+  const editSession = (id: string, patch: Partial<Session>) =>
+    setData((d) => ({
+      ...d,
+      sessions: d.sessions.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    }));
+  const startRunner = (s: Session) => {
+    if (runner?.session.id === s.id) {
+      setRunner({ ...runner, open: true });
+      return;
+    }
+    if (runner) {
+      setSwitchRun(s);
+      return;
+    }
+    setRunner({
+      session: structuredClone(s),
+      plays: structuredClone(data.plays),
+      open: true,
+    });
+  };
+  const chooseSession = (p: Play) => {
+    setAddingPlay(p);
+    setAddTarget(
+      data.sessions.find((s) => s.id === selectedSession && !s.completedAt)
+        ?.id ??
+        data.sessions.find((s) => !s.completedAt)?.id ??
+        "new",
+    );
+  };
+  const addPlayToSession = () => {
+    if (!addingPlay || !ready) return;
+    const existing = data.sessions.find((s) => s.id === addTarget);
+    if (
+      (existing && existing.blocks.length >= 50) ||
+      (!existing && data.sessions.length >= 50)
+    ) {
+      toast.error("This notebook has reached its session or block limit.");
+      return;
+    }
+    const target: Session = existing ?? {
+      id: uid(),
+      title: "The next session",
+      date: "",
+      players: 12,
+      targetMinutes: 60,
+      blocks: [],
+    };
+    const next = {
+      ...target,
+      blocks: [...target.blocks, blockFromPlay(addingPlay)],
+    };
+    setData((d) => ({
+      ...d,
+      sessions: existing
+        ? d.sessions.map((s) => (s.id === next.id ? next : s))
+        : [...d.sessions, next],
+    }));
+    setSelectedSession(next.id);
+    setAddingPlay(null);
+    toast.success(`Added to ${next.title}`, {
+      action: {
+        label: "View session",
+        onClick: () => {
+          setTab("session");
+          setSelectedSession(next.id);
+        },
+      },
+    });
+  };
+  const removeBlock = (sessionId: string, blockId: string) => {
+    const s = data.sessions.find((s) => s.id === sessionId);
+    const index = s?.blocks.findIndex((b) => b.id === blockId) ?? -1;
+    const block = s?.blocks[index];
+    if (!s || !block) return;
+    editSession(sessionId, {
+      blocks: s.blocks.filter((b) => b.id !== blockId),
+    });
+    toast("Practice block removed", {
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onClick: () =>
+          setData((d) => ({
+            ...d,
+            sessions: d.sessions.map((s) =>
+              s.id === sessionId
+                ? restoreBlock(
+                    s,
+                    {
+                      ...block,
+                      playId: d.plays.some((p) => p.id === block.playId)
+                        ? block.playId
+                        : undefined,
+                    },
+                    index,
+                  )
+                : s,
+            ),
+          })),
+      },
+    });
+  };
   const updatePlay = (p: Play) =>
     setData((d) => ({
       ...d,
@@ -92,22 +225,12 @@ export default function Notebook() {
     );
   const createPlay = (name: string) => {
     if (!ready || data.plays.length >= 100) return;
-    const p: Play = {
-      id: uid(),
-      title: name.trim(),
-      category: "Attack",
-      description: "",
-      cues: "",
-      players: [],
-      movements: [],
-      ballId: "",
-      updatedAt: new Date().toISOString(),
-    };
+    const p = createFromStarter(starter, name);
     setData((d) => ({ ...d, plays: [...d.plays, p] }));
     openPlay(p.id);
     setNewOpen(false);
     setNewName("");
-    toast.success("A fresh page. Make it yours.");
+    toast.success("Play created");
   };
   const duplicate = (p: Play) => {
     if (data.plays.length >= 100)
@@ -133,26 +256,24 @@ export default function Notebook() {
       blocks: [],
     };
     setData((d) => ({ ...d, sessions: [...d.sessions, s] }));
+    setSelectedSession(s.id);
     setTab("session");
   };
   const duplicateSession = (s: Session) => {
     if (data.sessions.length >= 50) return;
+    const copy = repeatSession(s);
     setData((d) => ({
       ...d,
-      sessions: [
-        ...d.sessions,
-        {
-          ...structuredClone(s),
-          id: uid(),
-          title: (s.title + " — copy").slice(0, 100),
-          blocks: s.blocks.map((b) => ({ ...b, id: uid() })),
-        },
-      ],
+      sessions: [...d.sessions, copy],
     }));
-    toast.success("Session copied");
+    setSelectedSession(copy.id);
+    setTab("session");
+    toast.success("Fresh plan created, with your next-time note");
   };
   const remove = () => {
     if (!deleting) return;
+    if (deleting.type === "session" && runner?.session.id === deleting.id)
+      setRunner(null);
     const previous = data;
     if (deleting.type === "play")
       setData((d) => ({
@@ -322,11 +443,32 @@ export default function Notebook() {
     }
     return () => lifecycle.abort();
   }, []);
-  const filtered = data.plays.filter((p) =>
-    (p.title + " " + p.category + " " + p.description)
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+  const filtered = data.plays
+    .filter(
+      (p) =>
+        (!favoritesOnly || p.favorite) &&
+        (categoryFilter === "all" || p.category === categoryFilter) &&
+        (
+          p.title +
+          " " +
+          p.category +
+          " " +
+          p.description +
+          " " +
+          p.cues +
+          " " +
+          (p.setup ?? "")
+        )
+          .toLowerCase()
+          .includes(query.toLowerCase()),
+    )
+    .sort((a, b) =>
+      sort === "title"
+        ? a.title.localeCompare(b.title)
+        : sort === "recent"
+          ? b.updatedAt.localeCompare(a.updatedAt)
+          : 0,
+    );
   return (
     <>
       <div className="app-shell">
@@ -356,25 +498,32 @@ export default function Notebook() {
           </div>
         </header>
         <main>
-          <div className="page-heading">
+          <div className="page-heading workspace-heading">
             <div>
-              <p className="eyebrow">A LITTLE THOUGHT. A BETTER GAME.</p>
-              <h1>Make room for the idea.</h1>
-              <p className="lede">
-                Draw it out, play it through, and take it to the pitch.
-              </p>
+              <h1>Your notebook</h1>
             </div>
-            <Button
-              className="new-play"
-              onClick={() => {
-                setNewName("");
-                setNewOpen(true);
-              }}
-              disabled={!ready || data.plays.length >= 100}
-            >
-              <Plus />
-              New play
-            </Button>
+            <div className="heading-actions">
+              {runner && (
+                <Button
+                  variant="outline"
+                  onClick={() => setRunner({ ...runner, open: true })}
+                >
+                  <Timer />
+                  Continue coaching
+                </Button>
+              )}
+              <Button
+                className="new-play"
+                onClick={() => {
+                  setNewName("");
+                  setNewOpen(true);
+                }}
+                disabled={!ready || data.plays.length >= 100}
+              >
+                <Plus />
+                New play
+              </Button>
+            </div>
           </div>
           {error && (
             <div className="error-banner" role="alert">
@@ -388,14 +537,16 @@ export default function Notebook() {
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() => {
-                    backup();
-                    void reload();
-                  }}
+                  disabled={!ready}
+                  onClick={() => void recover()}
                 >
-                  Back up & reload saved
+                  Keep my edits as copies
                 </Button>
               </div>
+              <p className="form-note">
+                Recovery keeps the latest saved notebook and adds your differing
+                plays and sessions as copies. Nothing is overwritten.
+              </p>
             </div>
           )}
           <Tabs value={tab} onValueChange={setTab}>
@@ -415,10 +566,24 @@ export default function Notebook() {
                 </TabsTrigger>
               </TabsList>
               <span className="quiet-note">
-                A notebook, with a little movement.
+                {data.plays.length} plays · {data.sessions.length} sessions
               </span>
             </div>
             <TabsContent value="board">
+              <div className="mobile-play-picker">
+                <Select value={play?.id ?? ""} onValueChange={openPlay}>
+                  <SelectTrigger aria-label="Current play">
+                    <SelectValue placeholder="Choose a play" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {data.plays.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.title || "Untitled play"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="workspace full-workspace">
                 <aside className="left-panel">
                   <div className="panel-heading">
@@ -477,6 +642,7 @@ export default function Notebook() {
                     onChange={updatePlay}
                     onDuplicate={() => duplicate(play)}
                     onPrint={() => setPrint({ play })}
+                    onAddSession={() => chooseSession(play)}
                     disabled={!ready}
                   />
                 ) : (
@@ -518,6 +684,46 @@ export default function Notebook() {
                   </Button>
                 </div>
               </div>
+              <div className="library-filters">
+                <Select
+                  value={categoryFilter}
+                  onValueChange={setCategoryFilter}
+                >
+                  <SelectTrigger aria-label="Filter play category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["all", "Attack", "Defence", "Set piece", "Skills"].map(
+                      (c) => (
+                        <SelectItem key={c} value={c}>
+                          {c === "all" ? "All categories" : c}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant={favoritesOnly ? "secondary" : "outline"}
+                  aria-pressed={favoritesOnly}
+                  onClick={() => setFavoritesOnly(!favoritesOnly)}
+                >
+                  <Star />
+                  Favourites
+                </Button>
+                <Select value={sort} onValueChange={setSort}>
+                  <SelectTrigger aria-label="Sort plays">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recent">Recently edited</SelectItem>
+                    <SelectItem value="title">Name A–Z</SelectItem>
+                    <SelectItem value="original">Original order</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>
+                  {filtered.length} {filtered.length === 1 ? "play" : "plays"}
+                </span>
+              </div>
               <div className="play-grid">
                 {filtered.map((p, i) => (
                   <article className="play-card" key={p.id}>
@@ -531,7 +737,18 @@ export default function Notebook() {
                     <div className="play-card-content">
                       <div className="card-eyebrow">
                         <span>{p.category}</span>
-                        <span>{String(i + 1).padStart(2, "0")}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`${p.favorite ? "Unfavourite" : "Favourite"} ${p.title}`}
+                          aria-pressed={!!p.favorite}
+                          disabled={!ready}
+                          onClick={() =>
+                            updatePlay({ ...p, favorite: !p.favorite })
+                          }
+                        >
+                          <Star fill={p.favorite ? "currentColor" : "none"} />
+                        </Button>
                       </div>
                       <button
                         className="card-title"
@@ -540,6 +757,15 @@ export default function Notebook() {
                         {p.title}
                       </button>
                       <p>{p.description || "An idea waiting to take shape."}</p>
+                      <Button
+                        className="card-add-session"
+                        variant="outline"
+                        disabled={!ready}
+                        onClick={() => chooseSession(p)}
+                      >
+                        <CalendarPlus />
+                        Add to session
+                      </Button>
                       <div className="card-footer">
                         <span>
                           {p.players.filter((x) => x.team !== "cone").length}{" "}
@@ -575,7 +801,7 @@ export default function Notebook() {
                     </div>
                   </article>
                 ))}
-                {!query && (
+                {!query && categoryFilter === "all" && !favoritesOnly && (
                   <button
                     className="new-play-card"
                     onClick={() => setNewOpen(true)}
@@ -583,26 +809,39 @@ export default function Notebook() {
                   >
                     <Plus size={28} />
                     <strong>Leave room for another idea.</strong>
-                    <span>Start with a blank pitch</span>
+                    <span>Choose a formation or a blank pitch</span>
                   </button>
                 )}
               </div>
-              {!filtered.length && query && (
-                <div className="empty-state">
-                  <Search size={28} />
-                  <h2>No plays found.</h2>
-                  <p>Try a different name or category.</p>
-                  <Button variant="outline" onClick={() => setQuery("")}>
-                    Clear search
-                  </Button>
-                </div>
-              )}
+              {!filtered.length &&
+                (query || categoryFilter !== "all" || favoritesOnly) && (
+                  <div className="empty-state">
+                    <Search size={28} />
+                    <h2>No plays found.</h2>
+                    <p>Try a different name or category.</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setQuery("");
+                        setCategoryFilter("all");
+                        setFavoritesOnly(false);
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </div>
+                )}
             </TabsContent>
             <TabsContent value="session">
               <Sessions
                 sessions={data.sessions}
                 plays={data.plays}
                 disabled={!ready}
+                selected={selectedSession}
+                onSelect={setSelectedSession}
+                onRun={startRunner}
+                activeRun={runner?.session.id}
+                onRemoveBlock={removeBlock}
                 onChange={(s) =>
                   setData((d) => ({
                     ...d,
@@ -641,34 +880,148 @@ export default function Notebook() {
           onChange={(e) => void importBackup(e.target.files?.[0])}
         />
         <Dialog open={newOpen} onOpenChange={setNewOpen}>
-          <DialogContent>
-            <DialogTitle>A fresh page.</DialogTitle>
+          <DialogContent className="starter-dialog">
+            <DialogTitle>Start with a shape</DialogTitle>
             <DialogDescription>
-              Give the idea a name. You can always change it later.
+              Choose a starting point. Every player, line and note is editable.
             </DialogDescription>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (newName.trim()) createPlay(newName);
+                createPlay(newName || starter.title);
               }}
               className="new-play-form"
             >
+              <RadioGroup
+                value={starterId}
+                onValueChange={setStarterId}
+                className="starter-grid"
+                aria-label="Starting formation"
+              >
+                {starters.map((s) => (
+                  <label
+                    key={s.id}
+                    className={
+                      "starter-card " + (starterId === s.id ? "selected" : "")
+                    }
+                    htmlFor={`starter-${s.id}`}
+                  >
+                    <Pitch play={s.play} mini />
+                    <span>
+                      <RadioGroupItem id={`starter-${s.id}`} value={s.id} />
+                      <strong>{s.title}</strong>
+                    </span>
+                    <small>{s.detail}</small>
+                  </label>
+                ))}
+              </RadioGroup>
               <label htmlFor="new-play-name">Play name</label>
               <Input
                 id="new-play-name"
                 autoFocus
-                placeholder="Something worth trying"
+                placeholder={starter.title}
                 value={newName}
                 maxLength={100}
                 onChange={(e) => setNewName(e.target.value)}
               />
-              <Button type="submit" disabled={!newName.trim() || !ready}>
+              <Button type="submit" disabled={!ready}>
                 Open the drawing board
                 <ArrowUpRight />
               </Button>
             </form>
           </DialogContent>
         </Dialog>
+        <Dialog
+          open={!!addingPlay}
+          onOpenChange={(open) => {
+            if (!open) setAddingPlay(null);
+          }}
+        >
+          <DialogContent>
+            <DialogTitle>Add “{addingPlay?.title}” to a session</DialogTitle>
+            <DialogDescription>
+              Copies setup, cues, equipment and adaptations into a 10-minute
+              block. Adjust it in the session plan.
+            </DialogDescription>
+            <Select value={addTarget} onValueChange={setAddTarget}>
+              <SelectTrigger aria-label="Destination session">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">Create a new session</SelectItem>
+                {data.sessions
+                  .filter((s) => !s.completedAt)
+                  .map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.title} · {s.blocks.length} blocks
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <Button disabled={!ready} onClick={addPlayToSession}>
+              <CalendarPlus />
+              Add practice block
+            </Button>
+          </DialogContent>
+        </Dialog>
+        <AlertDialog
+          open={!!switchRun}
+          onOpenChange={(v) => {
+            if (!v) setSwitchRun(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Start a different coaching session?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                The paused timer for “{runner?.session.title}” will be replaced.
+                Its saved plan and reflection stay in your notebook.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep current timer</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (switchRun)
+                    setRunner({
+                      session: structuredClone(switchRun),
+                      plays: structuredClone(data.plays),
+                      open: true,
+                    });
+                  setSwitchRun(null);
+                }}
+              >
+                Start new timer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        {runner && (
+          <SessionRunner
+            key={runner.session.id}
+            session={runner.session}
+            plays={runner.plays}
+            open={runner.open}
+            disabled={!ready}
+            review={
+              data.sessions.find((s) => s.id === runner.session.id)?.review
+            }
+            onClose={() => setRunner((r) => (r ? { ...r, open: false } : null))}
+            onFinish={() =>
+              editSession(runner.session.id, {
+                completedAt: new Date().toISOString(),
+              })
+            }
+            onReview={(review) => editSession(runner.session.id, { review })}
+            onDone={() => {
+              setSelectedSession(runner.session.id);
+              setTab("session");
+              setRunner(null);
+            }}
+          />
+        )}
         <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
           <DialogContent className="help-dialog">
             <DialogTitle>A little room to think.</DialogTitle>
@@ -688,13 +1041,17 @@ export default function Notebook() {
               </p>
               <p>
                 <b>03 · Play it through.</b> Use playback or scrub the timeline.
-                Passes chain in order; runs start together and extend in
-                two-second legs. Duplicate a play to explore a variation.
+                Passes chain in order. New runs start at the playhead or after
+                that player’s last leg. Click an arrow in Move mode or a pencil
+                in the sequence to edit timing and endpoints. Use Show play to
+                step through moments and focus on one player.
               </p>
               <p>
                 <b>04 · Take it outside.</b> Add plays to a session, adjust the
-                timing, and open the pitch-side timer. Print a plan or save it
-                as PDF through your browser.
+                timing, and open coach mode. Closing pauses the timer and keeps
+                your place in this tab. Finish to record a reflection; Plan next
+                session carries your next-time note into a fresh plan. Print a
+                plan or save it as PDF through your browser.
               </p>
               <p>
                 <b>Your notebook is yours.</b> Changes save to your signed-in
@@ -773,6 +1130,26 @@ function PrintPlay({ play }: { play: Play }) {
       <p className="print-notes">
         {play.cues || "Make a note of what you notice."}
       </p>
+      {play.setup && (
+        <p className="print-notes">
+          <b>Setup:</b> {play.setup}
+        </p>
+      )}
+      {play.equipment && (
+        <p>
+          <b>Equipment:</b> {play.equipment}
+        </p>
+      )}
+      {play.easier && (
+        <p className="print-notes">
+          <b>Make easier:</b> {play.easier}
+        </p>
+      )}
+      {play.challenge && (
+        <p className="print-notes">
+          <b>Add challenge:</b> {play.challenge}
+        </p>
+      )}
       <p className="print-key">
         Solid line: run · Dotted line: pass · Attack travels toward the try
         line.
@@ -806,6 +1183,26 @@ function PrintDocument({
               {selection.session.blocks.reduce((n, b) => n + b.minutes, 0)}{" "}
               minutes
             </p>
+            {selection.session.focus && (
+              <p>
+                <b>Focus:</b> {selection.session.focus}
+              </p>
+            )}
+            {selection.session.success && (
+              <p>
+                <b>Look for:</b> {selection.session.success}
+              </p>
+            )}
+            {selection.session.carriedForward && (
+              <p className="print-notes">
+                <b>From last time:</b> {selection.session.carriedForward}
+              </p>
+            )}
+            {equipmentList(selection.session).length > 0 && (
+              <p>
+                <b>Bring:</b> {equipmentList(selection.session).join(" · ")}
+              </p>
+            )}
             {selection.session.blocks.map((b, i) => {
               const linked = data.plays.find((p) => p.id === b.playId);
               return (
@@ -817,15 +1214,41 @@ function PrintDocument({
                   <div className="print-block-body">
                     {linked && <Pitch play={linked} mini />}
                     <div>
+                      {b.setup && (
+                        <p className="print-notes">
+                          <b>Setup:</b> {b.setup}
+                        </p>
+                      )}
                       <p className="print-notes">{b.notes}</p>
                       <p>
                         <b>Equipment:</b> {b.equipment || "—"}
                       </p>
+                      {b.easier && (
+                        <p className="print-notes">
+                          <b>Make easier:</b> {b.easier}
+                        </p>
+                      )}
+                      {b.challenge && (
+                        <p className="print-notes">
+                          <b>Add challenge:</b> {b.challenge}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </section>
               );
             })}
+            {selection.session.review && (
+              <section className="print-block">
+                <h2>Reflection</h2>
+                <p className="print-notes">
+                  <b>What worked:</b> {selection.session.review.worked || "—"}
+                </p>
+                <p className="print-notes">
+                  <b>Next time:</b> {selection.session.review.nextTime || "—"}
+                </p>
+              </section>
+            )}
           </>
         )
       )}

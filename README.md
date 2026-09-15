@@ -2,13 +2,18 @@
 
 A calm, personal rugby notebook. Draw a play, watch the movement, collect variations, and take a session plan to the pitch.
 
+[Open Touchline](https://touchline-notebook.frankyface.chatgpt.site) · [Source on GitHub](https://github.com/Frankyface/touchline) · [Product research](docs/product-research.md)
+
 ## Use it
 
-- **Drawing board:** drag or keyboard-position attackers, defenders and cones. Draw multi-leg runs and chained passes. Scrub, pause, restart, or change playback speed. Select a player to change their label or starting ball. Undo/redo edits.
-- **Playbook:** three original example plays get you started. Create your own, duplicate variations, search, or remove plays. Import adds copies from a validated backup without replacing existing work.
-- **Sessions:** build a timed practice from plays and freeform blocks. Edit notes/equipment, reorder blocks, see the time budget, and run a large pitch-side countdown.
+- **Drawing board:** start from five editable formations, position players and cones, and draw runs and passes. Select an arrow or its pencil to edit timing and run endpoints. Mirror a play, undo/redo, scrub, pause or change playback speed.
+- **Show play:** explain a sequence with a clean presentation view, previous/next movement moments and individual player focus.
+- **Playbook:** favorites, categories, search and sorting help retrieve ideas. Duplicate variations or import validated backups as new copies. Add any play directly to a new or existing session.
+- **Sessions:** combine plays and freeform blocks with a purpose, observable cues, setup and easier/harder variations. Reuse blocks, reorder them, see start offsets and gather equipment notes into one list.
+- **Coach mode:** keep the current animated diagram, cues and next block beside a large countdown. Pause, extend the timer or advance manually. Closing pauses and retains your place in the current tab; refresh resets timer progress. A run uses a snapshot of the plan, and timing adjustments do not change saved durations.
+- **Reflect and repeat:** mark a session delivered, record what worked and what to revisit, then use “Plan next session” to carry the next-time note into a fresh plan.
 - **Take it outside:** inspect print previews for individual cards and complete sessions; print or save PDF using the browser print dialog. Export an SVG diagram or JSON notebook backup.
-- **Your account:** hosted notebooks use ChatGPT sign-in and private per-user D1 storage. Changes autosave. Concurrent-device edits trigger a conflict instead of silently overwriting. Download your edits before reloading a conflict.
+- **Your account:** hosted notebooks use ChatGPT sign-in and private per-user D1 storage. Changes autosave. Concurrent-device edits trigger a conflict instead of silently overwriting. “Keep my edits as copies” retrieves saved data and preserves differing local records as linked recovery copies.
 
 Drawn routes illustrate your idea; Touchline does not predict rugby outcomes. The pitch is a schematic. Example practices use non-contact shadow defence.
 
@@ -42,15 +47,15 @@ npm run build
 node tests/api.test.mjs
 ```
 
-The API test requires the local dev server. It refuses non-loopback URLs, verifies authentication/validation/origin rejection/persistence/stale-write rejection, and restores the original local notebook. Do not edit the same local notebook while it runs.
+The API test requires the local dev server. It refuses non-loopback URLs, verifies authentication, validation, origin rejection, new-field persistence, stale-write rejection and recovery copies, and restores the original local notebook. Do not edit the same local notebook while it runs.
 
-Browser verification covered desktop 1440×1000 and phone 390×844, actual keyboard/pointer edits, save/reload, pass changes, cone removal, undo, search, imports, session duration/reorder, timer pause/next, print preview, and WebMCP success/failure paths. See [verification](docs/verification.md).
+The research update passed 19 model/workflow tests, TypeScript, local API integration and a production build, with independent source review. No new browser QA was performed for this update. The initial release had desktop/mobile interaction checks; those are historical evidence, not validation of every new control. See [verification](docs/verification.md).
 
 ## Implementation
 
 React 19 / Vinext / Cloudflare Workers; SVG coordinates; Zod validation; D1 document storage keyed by authenticated user ID with revision compare-and-swap. No AI key or paid model is needed to use the app. Limits: 100 plays, 40 markers and 120 movements per play, 50 sessions, 50 blocks per session; backup imports up to 2 MB.
 
-Runs append in two-second legs. Passes append in 0.7-second steps and can begin later by scrubbing before choosing a receiver. Animation itself is explicit user action and never autoplays.
+New runs use two-second legs and passes use 0.7-second steps. Scrub to choose a later start, then adjust timing in the movement editor. Animation is explicit user action and never autoplays. Saved session diagrams remain linked to the playbook, including delivered sessions; they are not immutable archives.
 
 Saving requires a connection. Unsaved edits stay in the current page and closing it warns; the app is not an offline/PWA app. Keep a downloaded backup for archival use.
 
@@ -58,6 +63,6 @@ In the Codex in-app browser, print preview and export serialization can be inspe
 
 ## Project records
 
-[Plan](docs/master_plan.md) · [Handoff](handoff.md) · [Verification](docs/verification.md) · [Agent plan](docs/agent_plan.md) · [Token ledger](docs/token_usage.md)
+[Research](docs/product-research.md) · [Plan](docs/master_plan.md) · [Handoff](handoff.md) · [Verification](docs/verification.md) · [Delivery](docs/delivery.md) · [Agent plan](docs/agent_plan.md) · [Token ledger](docs/token_usage.md)
 
 Original examples were checked against World Rugby's [back-line attack](https://passport.world.rugby/coaching/key-factor-analysis/unit-skills/back-line-attack/), [passing](https://passport.world.rugby/coaching/key-factor-analysis/handling/passing-the-ball/), and [Law 11](https://passport.world.rugby/laws-of-the-game/laws-by-number/11-knock-forward-or-throw-forward/) guidance. Text and diagrams are original, editable examples, not official coaching programmes.

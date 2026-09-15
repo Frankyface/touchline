@@ -10,6 +10,8 @@ export function Pitch({
   onCanvas,
   onDrag,
   onNudge,
+  onMovement,
+  focusPlayer,
 }: {
   play: Play;
   time?: number;
@@ -19,6 +21,8 @@ export function Pitch({
   onCanvas?: (x: number, y: number) => void;
   onDrag?: (id: string, x: number, y: number) => void;
   onNudge?: (id: string, x: number, y: number) => void;
+  onMovement?: (id: string) => void;
+  focusPlayer?: string;
 }) {
   const id = useId().replaceAll(":", "");
   const ball = ballAt(play, time);
@@ -102,16 +106,45 @@ export function Pitch({
             ? positionAt(play, m.targetId, m.start + m.duration)
             : { x: m.x, y: m.y };
         return (
-          <path
+          <g
             key={m.id}
-            d={`M${p.x * 7} ${p.y * 6.2} L${to.x * 7} ${to.y * 6.2}`}
-            fill="none"
-            stroke={m.kind === "pass" ? "#f3c76e" : "#e9f3d6"}
-            strokeWidth={mini ? 3 : 2.6}
-            strokeDasharray={m.kind === "pass" ? "6 7" : undefined}
-            opacity={time > m.start + m.duration ? 0.3 : 0.85}
-            markerEnd={`url(#${id}-${m.kind})`}
-          />
+            className="pitch-movement"
+            opacity={focusPlayer && m.playerId !== focusPlayer ? 0.15 : 1}
+          >
+            {onMovement && (
+              <path
+                d={`M${p.x * 7} ${p.y * 6.2} L${to.x * 7} ${to.y * 6.2}`}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={18}
+                role="button"
+                tabIndex={0}
+                aria-label={`Edit ${m.kind} by ${play.players.find((p) => p.id === m.playerId)?.label} at ${m.start.toFixed(1)} seconds`}
+                style={{ cursor: "pointer" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMovement(m.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onMovement(m.id);
+                  }
+                }}
+              />
+            )}
+            <path
+              key={m.id}
+              d={`M${p.x * 7} ${p.y * 6.2} L${to.x * 7} ${to.y * 6.2}`}
+              fill="none"
+              stroke={m.kind === "pass" ? "#f3c76e" : "#e9f3d6"}
+              strokeWidth={mini ? 3 : 2.6}
+              strokeDasharray={m.kind === "pass" ? "6 7" : undefined}
+              opacity={time > m.start + m.duration ? 0.3 : 0.85}
+              markerEnd={`url(#${id}-${m.kind})`}
+              pointerEvents="none"
+            />
+          </g>
         );
       })}
       {play.players.map((p) => {
@@ -120,6 +153,7 @@ export function Pitch({
           <g
             key={p.id}
             data-player={p.id}
+            opacity={focusPlayer && p.id !== focusPlayer ? 0.3 : 1}
             transform={`translate(${pos.x * 7},${pos.y * 6.2})`}
             role={onPlayer ? "button" : undefined}
             tabIndex={onPlayer ? 0 : undefined}

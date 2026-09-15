@@ -1,0 +1,491 @@
+/* Research-led refinements: less framing, faster authoring, readable delivery. */
+.topbar {
+  height: 66px;
+}
+main {
+  padding-top: 22px;
+}
+.workspace-heading {
+  margin-bottom: 14px;
+}
+.page-heading.workspace-heading h1 {
+  font-size: 25px;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+.heading-actions,
+.board-quick-actions,
+.dialog-actions,
+.reflection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.board-quick-actions {
+  padding: 0 12px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.board-quick-actions button {
+  font-size: 12px;
+  gap: 6px;
+  padding: 0 10px;
+}
+.board-quick-actions svg {
+  width: 15px;
+}
+.mobile-play-picker {
+  display: none;
+}
+.two-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.two-fields label,
+.movement-form label,
+.reflection-form label {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #415c48;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.two-fields input,
+.two-fields textarea {
+  width: 100%;
+}
+.form-note {
+  font-size: 12px;
+  color: #657660;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.form-error {
+  color: #963f2a;
+  padding: 10px;
+  border-radius: 5px;
+  background: #fff1e9;
+  font-size: 14px;
+}
+.movement-form {
+  display: grid;
+  gap: 15px;
+}
+.dialog-actions {
+  justify-content: flex-end;
+}
+.practice-details {
+  margin-top: 18px;
+  grid-column: 1/-1;
+}
+summary {
+  cursor: pointer;
+}
+.practice-details summary,
+.session-reflection summary {
+  font-size: 14px;
+  font-weight: 600;
+  color: #36593f;
+  padding: 12px 0;
+}
+.movement-row > div {
+  flex: 1;
+}
+.movement-row button {
+  flex-shrink: 0;
+  margin-left: 0;
+}
+.starter-dialog {
+  max-width: 850px !important;
+  width: calc(100% - 28px) !important;
+  max-height: 92dvh;
+  overflow: auto;
+}
+.starter-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.starter-card {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  background: #fff;
+  min-width: 0;
+}
+.starter-card.selected {
+  border-color: #356447;
+  background: #eff5eb;
+  box-shadow: 0 0 0 1px #356447;
+}
+.starter-card svg.pitch {
+  width: 100%;
+  max-height: 122px;
+}
+.starter-card > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.starter-card strong {
+  font-size: 13px;
+}
+.starter-card small {
+  color: #65755d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.library-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.library-filters > span {
+  margin-left: auto;
+  font-size: 13px;
+  color: #65755d;
+}
+.library-filters [data-slot="select-trigger"] {
+  min-width: 155px;
+}
+.card-eyebrow {
+  align-items: center;
+}
+.card-eyebrow button {
+  min-height: 38px;
+  width: 38px;
+  color: #597644;
+}
+.card-add-session {
+  margin-top: 14px;
+  font-size: 13px;
+  width: 100%;
+}
+.session-purpose {
+  margin: 20px 0 0;
+  padding: 0;
+  border: 0;
+}
+.carry-note,
+.coach-focus {
+  padding: 16px;
+  border-left: 3px solid #82986b;
+  background: #eff3e9;
+  margin: 15px 0;
+  border-radius: 3px;
+}
+.carry-note p,
+.coach-focus p {
+  white-space: pre-line;
+  font-size: 15px;
+  line-height: 1.6;
+  margin-top: 5px;
+}
+.carry-note strong,
+.coach-focus > span {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #61754f;
+}
+.coach-focus small {
+  display: block;
+  margin-top: 8px;
+  color: #486042;
+  font-size: 13px;
+}
+.block-index {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 32px;
+}
+.block-index small {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.reuse-block {
+  margin: 18px 0;
+  width: 100%;
+  max-width: 430px;
+}
+.equipment-summary {
+  border-top: 1px solid var(--border);
+  padding: 20px 0 0;
+  margin: 23px 0;
+}
+.equipment-summary h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.equipment-summary ul {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0;
+  list-style: none;
+}
+.equipment-summary li {
+  padding: 7px 11px;
+  background: #edf2e8;
+  border-radius: 5px;
+  font-size: 13px;
+  color: #4c6444;
+}
+.session-reflection {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 18px 8px;
+  margin: 23px 0;
+  background: #fff;
+}
+.reflection-actions {
+  margin: 14px 0 6px;
+}
+.presentation-dialog,
+.coach-dialog {
+  width: calc(100% - 32px) !important;
+  max-height: 94dvh;
+  overflow: auto;
+}
+.presentation-dialog {
+  max-width: 780px !important;
+}
+.coach-dialog {
+  max-width: 1100px !important;
+  padding: 30px;
+}
+.presentation-dialog [data-slot="dialog-title"],
+.coach-dialog [data-slot="dialog-title"] {
+  font-family: Georgia, serif;
+  font-size: 27px;
+  font-weight: 400;
+  line-height: 1.3;
+  padding-right: 25px;
+}
+.play-presentation {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.play-presentation > .pitch {
+  width: 100%;
+  max-height: 60dvh;
+}
+.presentation-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.play-presentation > [data-slot="select-trigger"] {
+  justify-self: center;
+  min-width: 150px;
+}
+.presentation-cues {
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+}
+.presentation-cues h3 {
+  font-size: 14px;
+}
+.presentation-cues ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.coach-layout {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.coach-timing {
+  position: sticky;
+  top: 0;
+  text-align: center;
+}
+.coach-timing .timer-face {
+  margin: 12px 0 8px;
+  font-size: 72px;
+  letter-spacing: -3px;
+}
+.timer-face.overtime {
+  color: #956437;
+}
+.clock-caption {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #667b5c;
+  margin-bottom: 18px;
+}
+.coach-navigation {
+  display: flex;
+  gap: 9px;
+  margin: 15px 0;
+}
+.coach-navigation > button:last-child {
+  flex: 1;
+}
+.coach-timing > [data-slot="select-trigger"] {
+  width: 100%;
+}
+.coach-content section {
+  border-top: 1px solid var(--border);
+  padding: 16px 0 0;
+  margin-top: 18px;
+}
+.coach-content h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 7px;
+  color: #63765a;
+}
+.coach-content p {
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-line;
+}
+.up-next {
+  text-align: left;
+  padding: 16px;
+  background: #f1f4ee;
+  border-radius: 6px;
+  margin-top: 18px;
+  display: grid;
+  gap: 7px;
+}
+.up-next span {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #66775d;
+}
+.up-next strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.up-next small {
+  font-size: 13px;
+  color: #66775d;
+}
+.adaptations {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.reflection-form {
+  display: grid;
+  gap: 20px;
+}
+.completion-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #4e7040;
+}
+@media (max-width: 950px) {
+  .editor-inspector .practice-details {
+    grid-column: 1/-1;
+  }
+  .coach-layout {
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+@media (max-width: 720px) {
+  .page-heading.workspace-heading h1 {
+    font-size: 23px;
+  }
+  .heading-actions {
+    gap: 5px;
+    justify-content: flex-end;
+  }
+  .heading-actions button {
+    font-size: 12px;
+    padding: 0 10px;
+  }
+  .mobile-play-picker {
+    display: block;
+    margin-bottom: 16px;
+  }
+  .mobile-play-picker [data-slot="select-trigger"] {
+    width: 100%;
+  }
+  .board-quick-actions {
+    gap: 0;
+    padding: 0 6px 8px;
+  }
+  .board-quick-actions button {
+    padding: 0 8px;
+    font-size: 11px;
+  }
+  .drawing-tools .tool,
+  .undo-group button,
+  .block-actions button,
+  .card-footer button {
+    min-height: 44px;
+    min-width: 40px;
+  }
+  .starter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .starter-card svg.pitch {
+    max-height: 95px;
+  }
+  .library-filters {
+    gap: 8px;
+  }
+  .library-filters [data-slot="select-trigger"] {
+    min-width: 0;
+    flex: 1;
+  }
+  .library-filters > span {
+    flex-basis: 100%;
+  }
+  .coach-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .coach-timing {
+    position: static;
+  }
+  .coach-dialog {
+    padding: 23px 17px;
+  }
+  .coach-timing .timer-face {
+    font-size: 68px;
+  }
+  .coach-timing .timer-buttons button {
+    min-height: 48px;
+    font-size: 15px;
+  }
+  .coach-timing .up-next {
+    margin-top: 14px;
+  }
+  .two-fields,
+  .adaptations {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .session-meta input {
+    font-size: 16px;
+  }
+  .session-reflection {
+    padding: 0 12px 8px;
+  }
+}
+@media print {
+  .print-surface .pitch-movement > path {
+    stroke: #5f7954;
+  }
+}

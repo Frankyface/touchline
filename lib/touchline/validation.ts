@@ -29,6 +29,11 @@ export const playSchema = z
     category: z.enum(["Attack", "Defence", "Set piece", "Skills"]),
     description: z.string().max(1000),
     cues: z.string().max(3000),
+    setup: z.string().max(1000).optional(),
+    equipment: z.string().max(500).optional(),
+    easier: z.string().max(1000).optional(),
+    challenge: z.string().max(1000).optional(),
+    favorite: z.boolean().optional(),
     players: z.array(player).max(40),
     movements: z.array(movement).max(120),
     ballId: z.string().max(100),
@@ -92,6 +97,9 @@ const block = z
     notes: z.string().max(3000),
     equipment: z.string().max(500),
     playId: id.optional(),
+    setup: z.string().max(1000).optional(),
+    easier: z.string().max(1000).optional(),
+    challenge: z.string().max(1000).optional(),
   })
   .strict();
 const session = z
@@ -102,6 +110,14 @@ const session = z
     players: z.number().int().min(1).max(60),
     targetMinutes: z.number().int().min(5).max(300),
     blocks: z.array(block).max(50),
+    focus: z.string().max(500).optional(),
+    success: z.string().max(500).optional(),
+    completedAt: z.string().datetime().optional(),
+    carriedForward: z.string().max(2000).optional(),
+    review: z
+      .object({ worked: z.string().max(2000), nextTime: z.string().max(2000) })
+      .strict()
+      .optional(),
   })
   .strict();
 export const notebookSchema = z

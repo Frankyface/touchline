@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./workspace.css";
+import "./refinements.css";
 
 export const metadata: Metadata = {
   title: "Touchline — Your rugby notebook",
