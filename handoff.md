@@ -6,7 +6,7 @@ The user requested deep product research, improvements and pushing the work to `
 
 Nineteen model/workflow tests, final uncached TypeScript, local API integration and production build passed. Two independent read-only reviewers approved the corrected source. No new browser QA was performed this turn; initial-release evidence below is historical.
 
-Push this validated product commit to GitHub and the existing Sites source repository, package compiled dist, save the exact pushed SHA and deploy its saved version. The research-update receipt in `docs/delivery.md`, when present, supersedes this checkpoint. Preserve owner-only access and reuse the existing Site ID below. Stop the local preview after successful hosted handoff.
+Research update delivery is complete: version 2 deployed successfully from `86efa52ccde7b4a13a99f1f6fcbb533c46568954`, pushed to GitHub and Sites. See `docs/delivery.md` for exact IDs and verification limits. Preserve owner-only access and reuse the existing Site ID below. The later documentation receipt does not change the published product source.
 
 ## Initial release checkpoint (historical)
 

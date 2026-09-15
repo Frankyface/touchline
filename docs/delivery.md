@@ -1,5 +1,25 @@
 # Delivery receipt
 
+## Research update — 2026-09-15 21:23 UTC
+
+Version 2 is privately published and its product source is pushed to [Frankyface/touchline](https://github.com/Frankyface/touchline).
+
+- Live URL: https://touchline-notebook.frankyface.chatgpt.site
+- Site: `appgprj_6aa9a0abd3e88191bb067d7d04e00ba9`
+- Saved version 2: `appgprj_6aa9a0abd3e88191bb067d7d04e00ba9~appgver_9bfef6c72a1881919dbbcb159999d7f1`
+- Deployment: `appgdep_6aa9b7336cd48191a1b3928ecb935d7b` — terminal status `succeeded`
+- Published product source: `86efa52ccde7b4a13a99f1f6fcbb533c46568954`
+- GitHub `main` was verified against that exact SHA after pushing. This receipt is a later documentation-only commit.
+- Audience remains private owner-only; no access changes or SQL migrations were made.
+
+Nineteen model/workflow tests, uncached TypeScript, final local API integration and the production build passed. Two independent reviewers approved the corrected source. The deployment archive was validated locally and accepted by Sites; the known Windows packaging-wrapper failure used the same native-tar fallback described below.
+
+No new browser QA or hosted write test was performed for this release. A direct HTTP probe did not establish a signed-in notebook user (API 401), so it is not claimed as a successful authenticated check. The first release's hosted save/reload evidence below remains historical. New feature acceptance evidence and limitations are in `verification.md`; research and implementation traceability are in `product-research.md`.
+
+The existing Codex preview tab was directed to the exact returned live URL. No recurring task was created. Product implementation is complete; observational field use is the next source of usability evidence.
+
+## Initial release
+
 Touchline is complete and privately published as of 2026-09-15 20:41 UTC.
 
 Live URL: https://touchline-notebook.frankyface.chatgpt.site
