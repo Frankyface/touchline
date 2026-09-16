@@ -27,7 +27,9 @@ Run `npm run build:pages` and `npm run preview:pages` locally. For a source-leve
 - Static production build passed, with the expected `/touchline/` script/style/favicon paths.
 - Original Sites production build passed, retaining only `/` and `/api/notebook` routes.
 - Actual browser rendered the notebook with browser-local save labels and no recorded page errors.
+- An actual edit autosaved and survived a browser reload; the original play name was restored afterward.
 - Six real IndexedDB checks passed: save/load roundtrip, competing revisions, invalid input rejection, quota failure preserving saved data, unavailable storage rejection and corrupt-record preservation.
 - Independent source review approved the storage adapter, response validation, static routing isolation, artifact and deployment workflow.
+- The first clean GitHub install exposed eight incomplete optional-package lock entries inherited from the Windows install. Regenerating those entries in a clean directory preserved existing locked versions and supplied the missing platform metadata. A Linux-targeted clean-install dry run then passed.
 
 This is not an offline-installable PWA. The app shell still needs a network connection to load; once loaded, notebook saves use local storage. The account-backed Sites deployment remains available separately.
