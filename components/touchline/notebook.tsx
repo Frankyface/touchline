@@ -63,6 +63,7 @@ import {
 } from "@/lib/touchline/model";
 import { notebookSchema } from "@/lib/touchline/validation";
 import { useNotebook } from "@/lib/touchline/use-notebook";
+import type { NotebookStore } from "@/lib/touchline/notebook-store";
 import { downloadFile } from "@/lib/touchline/export";
 import { Pitch } from "./pitch";
 import { Editor } from "./editor";
@@ -71,9 +72,10 @@ import { SessionRunner } from "./session-runner";
 import { starters, createFromStarter } from "@/lib/touchline/templates";
 
 type DeleteItem = { type: "play" | "session"; id: string; title: string };
-export default function Notebook() {
+export default function Notebook({ store, homeHref = "/" }: { store?: NotebookStore; homeHref?: string }) {
+  const browserOnly = store?.kind === "browser";
   const { data, setData, ready, status, error, canRetry, retry, recover } =
-    useNotebook();
+    useNotebook(store);
   const [tab, setTab] = useState("board"),
     [selected, setSelected] = useState(firstPlay.id),
     [query, setQuery] = useState(""),
@@ -473,7 +475,7 @@ export default function Notebook() {
     <>
       <div className="app-shell">
         <header className="topbar">
-          <a href="/" className="brand">
+          <a href={homeHref} className="brand">
             <span className="brand-mark">
               <Route size={22} />
             </span>
@@ -484,7 +486,7 @@ export default function Notebook() {
               className={"save-status " + (error ? "save-error" : "")}
               role="status"
             >
-              {status === "All changes saved" && <Check size={13} />} {status}
+              {(status === "All changes saved" || status === "Saved in this browser") && <Check size={13} />} {status}
             </span>
             <Button
               variant="ghost"
@@ -501,6 +503,7 @@ export default function Notebook() {
           <div className="page-heading workspace-heading">
             <div>
               <h1>Your notebook</h1>
+              {browserOnly && <p className="form-note">Saved on this device. Export a backup to keep or move your work.</p>}
             </div>
             <div className="heading-actions">
               {runner && (
@@ -1054,8 +1057,11 @@ export default function Notebook() {
                 plan or save it as PDF through your browser.
               </p>
               <p>
-                <b>Your notebook is yours.</b> Changes save to your signed-in
-                account. Backups download all your plays and sessions; importing
+                <b>Your notebook is yours.</b>{" "}
+                {browserOnly
+                  ? "Changes save in this browser on this device. Clearing site data removes them, and private browsing may discard them when closed. This edition does not sync with your account. "
+                  : "Changes save to your signed-in account. "}
+                Backups download all your plays and sessions; importing
                 adds copies. Use SVG export for a clean diagram.
               </p>
               <p>

@@ -1,5 +1,9 @@
 # Touchline handoff
 
+## GitHub Pages edition
+
+The user requested GitHub Pages. A separate static Vite entry under `github-pages/` now reuses the shared Notebook with transactional IndexedDB storage, clear device-local saving copy and base-safe links. The default authenticated Sites adapter remains in place. `.github/workflows/pages.yml` builds/tests and publishes `dist-pages` from main; Pages is enabled in Actions mode at `https://frankyface.github.io/touchline/`. See `docs/github-pages.md` for implementation, tests and storage limits. This edition does not sync account notebooks automatically.
+
 ## Current checkpoint — research update
 
 The user requested deep product research, improvements and pushing the work to `https://github.com/Frankyface/touchline`. The baseline has been pushed. All research improvements are implemented: starters, precise movement editing, mirroring, presentation/player focus, library retrieval, session handoff/coaching details, contextual coach mode, reflection/reuse and safe recovery copies. See `docs/product-research.md`.

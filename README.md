@@ -2,7 +2,20 @@
 
 A calm, personal rugby notebook. Draw a play, watch the movement, collect variations, and take a session plan to the pitch.
 
-[Open Touchline](https://touchline-notebook.frankyface.chatgpt.site) · [Source on GitHub](https://github.com/Frankyface/touchline) · [Product research](docs/product-research.md)
+[Open GitHub Pages edition](https://frankyface.github.io/touchline/) · [Account-synced edition](https://touchline-notebook.frankyface.chatgpt.site) · [Source on GitHub](https://github.com/Frankyface/touchline) · [Product research](docs/product-research.md)
+
+## GitHub Pages
+
+The Pages edition provides the same drawing board, playbook and session tools without sign-in. It saves to IndexedDB **in the current browser on the current device**. It does not sync with the account-backed edition. Use **Back up notebook** and **Import backup** to transfer work; clearing site data or closing a private browsing session can remove local notebooks.
+
+Every push to `main` runs the tests, type check and static build, then deploys `dist-pages` through [.github/workflows/pages.yml](.github/workflows/pages.yml). GitHub Pages is public, but notebook contents stay in each visitor's browser and are not included in deployment artifacts.
+
+```powershell
+npm run build:pages
+npm run preview:pages
+```
+
+Open the printed URL with `/touchline/`. The static entry is `github-pages/`; it reuses the shared React components and keeps the existing Sites build separate. See [Pages implementation and checks](docs/github-pages.md).
 
 ## Use it
 

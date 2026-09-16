@@ -2,8 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initialData, mergeRecovery, type NotebookData } from "./model";
 import { notebookSchema } from "./validation";
+import { accountNotebookStore, NotebookConflict, type NotebookStore } from "./notebook-store";
 
-export function useNotebook() {
+export function useNotebook(store: NotebookStore = accountNotebookStore) {
+  const savedStatus = store.kind === "browser" ? "Saved in this browser" : "All changes saved";
   const [data, setData] = useState<NotebookData>(initialData),
     [ready, setReady] = useState(false),
     [status, setStatus] = useState("Loading notebook…"),
@@ -32,16 +34,7 @@ export function useNotebook() {
       // Let an already-sent write finish before asking the server for its current revision.
       if (inFlight.current) await inFlight.current;
       if (gen !== generation.current || !mounted.current) return;
-      const r = await fetch("/api/notebook", {
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      const body = (await r.json()) as {
-        data: unknown;
-        revision: number;
-        error?: string;
-      };
-      if (!r.ok) throw new Error(body.error);
+      const body = await store.load(controller.signal);
       const valid = notebookSchema.parse(body.data);
       if (gen !== generation.current || !mounted.current) return;
       let next: NotebookData = valid;
@@ -65,7 +58,7 @@ export function useNotebook() {
       setReady(true);
       setStatus(
         JSON.stringify(next) === saved.current
-          ? "All changes saved"
+          ? savedStatus
           : "Unsaved changes",
       );
       setError("");
@@ -77,12 +70,12 @@ export function useNotebook() {
       )
         return;
       setError(e instanceof Error ? e.message : "Unable to load notebook");
-      setStatus("Could not connect");
+      setStatus("Could not load notebook");
       if (hadData) setReady(true);
     } finally {
       if (gen === generation.current) loading.current = false;
     }
-  }, []);
+  }, [store, savedStatus]);
   const flush = useCallback(async () => {
     if (
       inFlight.current ||
@@ -102,16 +95,7 @@ export function useNotebook() {
     let success = false;
     const request = (async () => {
       try {
-        const r = await fetch("/api/notebook", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ revision: revision.current, data: snapshot }),
-        });
-        const body = (await r.json()) as { revision: number; error?: string };
-        if (!r.ok) {
-          if (r.status === 409) conflict.current = true;
-          throw new Error(body.error);
-        }
+        const body = await store.save(snapshot, revision.current);
         revision.current = body.revision;
         saved.current = json;
         success = true;
@@ -119,11 +103,12 @@ export function useNotebook() {
           setError("");
           setStatus(
             JSON.stringify(latest.current) === json
-              ? "All changes saved"
+              ? savedStatus
               : "Unsaved changes",
           );
         }
       } catch (e) {
+        if (e instanceof NotebookConflict) conflict.current = true;
         if (mounted.current && !loading.current) {
           setError(e instanceof Error ? e.message : "Saving failed");
           setStatus("Changes not saved");
@@ -140,7 +125,7 @@ export function useNotebook() {
       JSON.stringify(latest.current) !== saved.current
     )
       setTimeout(() => void flush(), 300);
-  }, []);
+  }, [store, savedStatus]);
   useEffect(() => {
     mounted.current = true;
     void load();
