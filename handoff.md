@@ -1,8 +1,8 @@
 # Touchline handoff
 
-## Play mode — 2026-09-21
+## Ball possession and smoother Play mode — 2026-09-21
 
-Active feature: [Play mode](docs/play-mode.md). Sequential real-time player and ball recording, natural/polygon paths, edge/straightening controls, preview, one-step undo, preserved per-player corrections and compact size-checked backups are implemented. Targets the GitHub Pages deployment; the older private Sites deployment has not been republished for this update. See the delivery record for the published commit and action result.
+Active feature: [Play mode](docs/play-mode.md). Players start recording by dragging; untouched routes survive. A dedicated Ball stage keeps possession with the carrier and authors passes, curved kicks, receiver snapping and loose landings. Includes preview, action/take undo, natural/polygon paths and compact size-checked backups. Targets GitHub Pages; the older private Sites deployment has not been republished and cannot accept new recording/kick fields. See the delivery record for publication and checks.
 
 ## GitHub Pages edition
 

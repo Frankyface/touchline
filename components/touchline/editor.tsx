@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Copy,
+  CornerUpRight,
   Download,
   Flag,
   MousePointer2,
@@ -42,14 +43,20 @@ import {
   type Play,
   type Team,
   type Movement,
+  ballActions,
 } from "@/lib/touchline/model";
+import {
+  appendBallAction,
+  assignKickReceiver,
+  nearestReceiver,
+} from "@/lib/touchline/ball";
 import { downloadFile } from "@/lib/touchline/export";
 import { Pitch } from "./pitch";
 import { MovementEditor } from "./movement-editor";
 import { Presentation } from "./presentation";
 import { PlayRecorder, TraceControls } from "./play-recorder";
 
-type Mode = "select" | "run" | "pass" | "attack" | "defence" | "cone";
+type Mode = "select" | "run" | "pass" | "kick" | "attack" | "defence" | "cone";
 export function Editor({
   play,
   onChange,
@@ -84,10 +91,10 @@ export function Editor({
   const pitchRef = useRef<HTMLDivElement>(null);
   const duration = totalTime(play);
   useEffect(() => {
-    if (mode === "pass")
+    if (mode === "pass" || mode === "kick")
       setSelected(
         play.movements
-          .filter((m) => m.kind === "pass")
+          .filter((m) => m.kind !== "run")
           .sort((a, b) => a.start - b.start)
           .at(-1)?.targetId ?? play.ballId,
       );
@@ -170,11 +177,21 @@ export function Editor({
     setMode(m);
     setPlaying(false);
     setHint("");
-    if (m === "pass") {
+    if (m === "pass" || m === "kick") {
       const passes = play.movements
-        .filter((x) => x.kind === "pass")
+        .filter((x) => x.kind !== "run")
         .sort((a, b) => a.start - b.start);
       setSelected(passes.at(-1)?.targetId ?? play.ballId);
+      if (passes.length && !passes.at(-1)?.targetId)
+        setHint(
+          "The ball lands in space. Tap a player to receive the last kick.",
+        );
+      setTime(
+        Math.max(
+          time,
+          passes.at(-1) ? passes.at(-1)!.start + passes.at(-1)!.duration : 0,
+        ),
+      );
     }
   };
   const addMovement = (movement: Movement) => {
@@ -188,38 +205,45 @@ export function Editor({
       setHint("This play has reached the three-minute sequence limit.");
       return;
     }
-    update({ movements: [...play.movements, movement], ...(movement.kind === "pass" ? { ballTrace: undefined } : {}) });
+    update({
+      movements: [...play.movements, movement],
+      ...(movement.kind !== "run" ? { ballTrace: undefined } : {}),
+    });
+  };
+  const addBall = (target: { x: number; y: number; id?: string }) => {
+    try {
+      const last = ballActions(play).at(-1);
+      const next =
+        last && !last.targetId && target.id
+          ? assignKickReceiver(play, target.id)
+          : appendBallAction(
+              play,
+              mode === "kick" ? "kick" : "pass",
+              target,
+              time,
+            );
+      const action = ballActions(next).at(-1)!;
+      edit(next);
+      setTime(action.start);
+      setPlaying(true);
+      setMode("select");
+      setSelected(action.targetId ?? action.playerId);
+      setHint(
+        action.targetId
+          ? "Ball action added. The receiver catches it and keeps possession."
+          : "Kick added. Choose Pass or Kick, then tap a player to make them the receiver.",
+      );
+    } catch (e) {
+      setHint(e instanceof Error ? e.message : "Choose a ball target.");
+    }
   };
   const onPlayer = (id: string) => {
     if (disabled) return;
-    const player = play.players.find((p) => p.id === id)!;
-    const passes = play.movements
-      .filter((m) => m.kind === "pass")
-      .sort((a, b) => a.start - b.start);
-    const sender = passes.at(-1)?.targetId ?? play.ballId;
-    if (mode === "pass" && sender && id !== sender && player.team !== "cone") {
-      const start = Math.max(
-        time,
-        ...passes.map((m) => m.start + m.duration),
-        0,
-      );
-      if (play.movements.length >= 120 || start > 180) {
-        setHint("Remove a movement before extending this sequence.");
-        return;
-      }
-      addMovement({
-        id: uid(),
-        kind: "pass",
-        playerId: sender,
-        targetId: id,
-        x: player.x,
-        y: player.y,
-        start,
-        duration: 0.7,
-      });
-      setSelected(id);
-      setHint("Pass added. Select the next receiver to keep it moving.");
-    } else if (mode !== "pass") setSelected(id);
+    const player = play.players.find((p) => p.id === id);
+    if (!player) return;
+    if ((mode === "pass" || mode === "kick") && player.team !== "cone")
+      addBall({ ...player, id });
+    else setSelected(id);
   };
   const onCanvas = (x: number, y: number) => {
     if (disabled) return;
@@ -245,6 +269,9 @@ export function Editor({
         ballId: play.ballId || (team !== "cone" ? id : ""),
       });
       setSelected(id);
+    } else if (mode === "kick") {
+      const target = nearestReceiver(play, { x, y }, time);
+      addBall({ x, y, id: target?.id });
     } else if (mode === "run" && selected) {
       const player = play.players.find((p) => p.id === selected);
       if (!player || player.team === "cone") {
@@ -290,7 +317,7 @@ export function Editor({
     const firstAffected = play.movements
       .filter(
         (m) =>
-          m.kind === "pass" &&
+          m.kind !== "run" &&
           (m.playerId === selected || m.targetId === selected),
       )
       .sort((a, b) => a.start - b.start)[0];
@@ -310,7 +337,7 @@ export function Editor({
     setSelected("");
     setHint(
       cutoff < Infinity
-        ? "Player removed. Passes from that point onward were cleared."
+        ? "Player removed. Ball actions from that point onward were cleared."
         : "Removed. The rest of the play is unchanged.",
     );
   };
@@ -338,6 +365,7 @@ export function Editor({
     pass: selected
       ? `Tap a receiver for ${player?.label ?? "the carrier"}. The pass starts at the playhead or after the last pass.`
       : "Add a player and give them the ball first.",
+    kick: "Tap a receiver or open space. The ball follows an arc, then stays with the receiver or lands on the pitch.",
     attack: "Tap the pitch to add an attacker.",
     defence: "Tap the pitch to add a defender.",
     cone: "Tap the pitch to place a cone.",
@@ -381,8 +409,16 @@ export function Editor({
           </div>
         </div>
         <div className="board-quick-actions">
-          <Button variant="outline" disabled={disabled || !play.players.some(p => p.team !== "cone")} onClick={() => { setPlaying(false); setRecordingPlay(true); }}>
-            <PlayIcon />Play mode
+          <Button
+            variant="outline"
+            disabled={disabled || !play.players.some((p) => p.team !== "cone")}
+            onClick={() => {
+              setPlaying(false);
+              setRecordingPlay(true);
+            }}
+          >
+            <PlayIcon />
+            Play mode
           </Button>
           <Button variant="ghost" onClick={() => setPresenting(true)}>
             <Maximize2 />
@@ -414,6 +450,7 @@ export function Editor({
               { id: "select", icon: MousePointer2, label: "Move" },
               { id: "run", icon: Route, label: "Run" },
               { id: "pass", icon: Send, label: "Pass" },
+              { id: "kick", icon: CornerUpRight, label: "Kick" },
               { id: "attack", icon: Plus, label: "Attacker" },
               { id: "defence", icon: Users, label: "Defender" },
               { id: "cone", icon: Flag, label: "Cone" },
@@ -539,7 +576,7 @@ export function Editor({
             Defence
           </span>
           <span>⟶ Run</span>
-          <span className="pass-key">⇢ Pass</span>
+          <span className="pass-key">⇢ Pass · ⤴ Kick</span>
         </div>
       </section>
       <aside className="right-panel editor-inspector">
@@ -699,14 +736,14 @@ export function Editor({
                   onClick={() => {
                     edit(setStartingCarrier(play, selected));
                     setHint(
-                      "Starting carrier changed. Draw a new pass sequence.",
+                      "Starting carrier changed. Add passes or kicks when needed.",
                     );
                   }}
                 >
                   {play.ballId === selected
                     ? "Starts with the ball"
-                    : play.movements.some((m) => m.kind === "pass")
-                      ? "Give ball & clear passes"
+                    : play.movements.some((m) => m.kind !== "run")
+                      ? "Give ball & clear ball actions"
                       : "Give starting ball"}
                 </Button>
               )}
@@ -721,12 +758,27 @@ export function Editor({
             </div>
           )}
           <div className="divider" />
-          {play.ballTrace && <details className="practice-details recorded-ball-details">
-            <summary>Recorded ball route</summary>
-            <TraceControls value={play.ballTrace} onChange={settings => update({ ballTrace: { ...play.ballTrace!, ...settings } })} />
-            <Button variant="ghost" onClick={() => update({ ballTrace: undefined })}>Remove ball recording</Button>
-            <p className="form-note">Drawing a new pass or changing the starting carrier replaces this route.</p>
-          </details>}
+          {play.ballTrace && (
+            <details className="practice-details recorded-ball-details">
+              <summary>Recorded ball route</summary>
+              <TraceControls
+                value={play.ballTrace}
+                onChange={(settings) =>
+                  update({ ballTrace: { ...play.ballTrace!, ...settings } })
+                }
+              />
+              <Button
+                variant="ghost"
+                onClick={() => update({ ballTrace: undefined })}
+              >
+                Use carrier possession
+              </Button>
+              <p className="form-note">
+                Adding a pass or kick, or changing the starting carrier replaces
+                this route.
+              </p>
+            </details>
+          )}
           <div className="panel-heading">
             <span>MOVEMENT SEQUENCE</span>
             <span>{play.movements.length}</span>
@@ -734,15 +786,17 @@ export function Editor({
           <div className="movement-list">
             {play.movements.length === 0 ? (
               <p className="empty-small">
-                Add a run or pass to bring the idea to life.
+                Add a run, pass or kick to bring the idea to life.
               </p>
             ) : (
               [...play.movements]
                 .sort((a, b) => a.start - b.start)
                 .map((m, i) => (
                   <div className="movement-row" key={m.id}>
-                    <span className={m.kind === "pass" ? "movement-pass" : ""}>
-                      {m.kind === "pass" ? (
+                    <span className={m.kind !== "run" ? "movement-pass" : ""}>
+                      {m.kind === "kick" ? (
+                        <CornerUpRight size={14} />
+                      ) : m.kind === "pass" ? (
                         <Send size={14} />
                       ) : (
                         <Route size={14} />
@@ -751,10 +805,13 @@ export function Editor({
                     <div>
                       <strong>
                         {play.players.find((p) => p.id === m.playerId)?.label}{" "}
-                        {m.kind === "pass"
-                          ? "→ " +
-                            play.players.find((p) => p.id === m.targetId)?.label
-                          : m.trace ? "recorded run" : "runs"}
+                        {m.kind !== "run"
+                          ? (m.kind === "kick" ? "kicks → " : "passes → ") +
+                            (play.players.find((p) => p.id === m.targetId)
+                              ?.label ?? "space")
+                          : m.trace
+                            ? "recorded run"
+                            : "runs"}
                       </strong>
                       <small>
                         {m.start.toFixed(1)}–{(m.start + m.duration).toFixed(1)}
@@ -779,9 +836,9 @@ export function Editor({
                       onClick={() =>
                         update({
                           movements:
-                            m.kind === "pass"
+                            m.kind !== "run"
                               ? play.movements.filter(
-                                  (x) => x.kind !== "pass" || x.start < m.start,
+                                  (x) => x.kind === "run" || x.start < m.start,
                                 )
                               : play.movements.filter((x) => x.id !== m.id),
                         })
@@ -817,7 +874,20 @@ export function Editor({
       {presenting && (
         <Presentation play={play} onClose={() => setPresenting(false)} />
       )}
-      {recordingPlay && <PlayRecorder play={play} onApply={next => { const error = recordingError?.(next); if (error) return error; edit(next); setHint("Recording converted into a slate. Play it through, or use a movement pencil to adjust its lines. Undo restores your previous sequence."); }} onClose={() => setRecordingPlay(false)} />}
+      {recordingPlay && (
+        <PlayRecorder
+          play={play}
+          onApply={(next) => {
+            const error = recordingError?.(next);
+            if (error) return error;
+            edit(next);
+            setHint(
+              "Recording converted into a slate. Play it through, or use a movement pencil to adjust its lines. Undo restores your previous sequence.",
+            );
+          }}
+          onClose={() => setRecordingPlay(false)}
+        />
+      )}
     </div>
   );
 }

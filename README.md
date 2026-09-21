@@ -19,8 +19,8 @@ Open the printed URL with `/touchline/`. The static entry is `github-pages/`; it
 
 ## Use it
 
-- **Drawing board:** start from five editable formations, position players and cones, and draw runs and passes. Select an arrow or its pencil to edit timing and run endpoints. Mirror a play, undo/redo, scrub, pause or change playback speed.
-- **Play mode:** record each player by dragging in real time, ball last, then turn the takes into a slate. Keep the natural path or choose polygon edges and straightening. Pauses and pace remain in the timeline; individual routes stay editable. [Guide and checks](docs/play-mode.md).
+- **Drawing board:** start from five editable formations, position players and cones, and draw runs, passes and kicks. Select an arrow or its pencil to edit timing and endpoints. Mirror a play, undo/redo, scrub, pause or change playback speed.
+- **Play mode:** drag a player to record in real time; untouched players keep their routes. In the Ball stage, click Pass or Kick and a target, or drag the ball onto a receiver. The ball follows its carrier and snaps into possession after a catch. Preview natural or polygon paths, then apply the slate in one undo step. [Guide and checks](docs/play-mode.md).
 - **Show play:** explain a sequence with a clean presentation view, previous/next movement moments and individual player focus.
 - **Playbook:** favorites, categories, search and sorting help retrieve ideas. Duplicate variations or import validated backups as new copies. Add any play directly to a new or existing session.
 - **Sessions:** combine plays and freeform blocks with a purpose, observable cues, setup and easier/harder variations. Reuse blocks, reorder them, see start offsets and gather equipment notes into one list.
@@ -69,7 +69,7 @@ The research update passed 19 model/workflow tests, TypeScript, local API integr
 
 React 19 / Vinext / Cloudflare Workers; SVG coordinates; Zod validation; D1 document storage keyed by authenticated user ID with revision compare-and-swap. No AI key or paid model is needed to use the app. Limits: 100 plays, 40 markers and 120 movements per play, 50 sessions, 50 blocks per session; backup imports up to 2 MB.
 
-New runs use two-second legs and passes use 0.7-second steps. Scrub to choose a later start, then adjust timing in the movement editor. Animation is explicit user action and never autoplays. Saved session diagrams remain linked to the playbook, including delivered sessions; they are not immutable archives.
+New runs use two-second legs, passes use 0.7-second steps and kicks use 1.4-second flights. Scrub to choose a later start, then adjust timing in the movement editor. Adding a pass or kick previews that action; general playback starts on request. Saved session diagrams remain linked to the playbook, including delivered sessions; they are not immutable archives.
 
 Saving requires a connection. Unsaved edits stay in the current page and closing it warns; the app is not an offline/PWA app. Keep a downloaded backup for archival use.
 

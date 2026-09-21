@@ -43,7 +43,7 @@ export function MovementEditor({
         <DialogTitle>
           {movement.kind === "run"
             ? `Edit ${label}’s run`
-            : `Edit ${label}’s pass`}
+            : `Edit ${label}’s ${movement.kind}`}
         </DialogTitle>
         <DialogDescription>
           Adjust this movement. Other movements keep their timing.
@@ -108,7 +108,7 @@ export function MovementEditor({
               />
             </label>
           </div>
-          {movement.kind === "run" ? (
+          {movement.kind === "run" || !movement.targetId ? (
             <div className="two-fields">
               <label>
                 Finish X
@@ -139,16 +139,26 @@ export function MovementEditor({
             </div>
           ) : (
             <p className="form-note">
-              The pass follows receiver{" "}
+              This ball action follows receiver{" "}
               {play.players.find((p) => p.id === movement.targetId)?.label} at
               the arrival time.
             </p>
           )}
-          {trace && <TraceControls value={trace} onChange={settings => setTrace({ ...trace, ...settings })} />}
-          {trace && <p className="form-note">Timing changes retime the recorded movement. Start/end edits reshape the route; the original recording stays available.</p>}
+          {trace && (
+            <TraceControls
+              value={trace}
+              onChange={(settings) => setTrace({ ...trace, ...settings })}
+            />
+          )}
+          {trace && (
+            <p className="form-note">
+              Timing changes retime the recorded movement. Start/end edits
+              reshape the route; the original recording stays available.
+            </p>
+          )}
           <p className="form-note">
-            Runs for the same player cannot overlap. Passes must stay in
-            possession order.
+            Runs for the same player cannot overlap. Passes and kicks must stay
+            in possession order.
           </p>
           {error && (
             <p className="form-error" role="alert">

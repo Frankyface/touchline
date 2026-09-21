@@ -11,7 +11,7 @@ export type Player = {
 export type Movement = {
   id: string;
   playerId: string;
-  kind: "run" | "pass";
+  kind: "run" | "pass" | "kick";
   x: number;
   y: number;
   targetId?: string;
@@ -130,15 +130,34 @@ export const uid = () => crypto.randomUUID();
 export const clamp = (v: number, min = 4, max = 96) =>
   Math.max(min, Math.min(max, v));
 export const totalTime = (play: Play) =>
-  Math.max(play.clipDuration ?? 6, ...play.movements.map((m) => m.start + m.duration));
+  Math.max(
+    play.clipDuration ?? 6,
+    ...play.movements.map((m) => m.start + m.duration),
+  );
 export function mirrorPlay(play: Play): Play {
   return {
     ...play,
     players: play.players.map((p) => ({ ...p, x: 100 - p.x })),
-    movements: play.movements.map((m) => ({ ...m, x: 100 - m.x,
-      ...(m.trace ? { trace: { ...m.trace, points: m.trace.points.map(p => ({ ...p, x: 100 - p.x })) } } : {}),
+    movements: play.movements.map((m) => ({
+      ...m,
+      x: 100 - m.x,
+      ...(m.trace
+        ? {
+            trace: {
+              ...m.trace,
+              points: m.trace.points.map((p) => ({ ...p, x: 100 - p.x })),
+            },
+          }
+        : {}),
     })),
-    ...(play.ballTrace ? { ballTrace: { ...play.ballTrace, points: play.ballTrace.points.map(p => ({ ...p, x: 100 - p.x })) } } : {}),
+    ...(play.ballTrace
+      ? {
+          ballTrace: {
+            ...play.ballTrace,
+            points: play.ballTrace.points.map((p) => ({ ...p, x: 100 - p.x })),
+          },
+        }
+      : {}),
   };
 }
 export function setStartingCarrier(play: Play, id: string): Play {
@@ -151,7 +170,7 @@ export function setStartingCarrier(play: Play, id: string): Play {
     ...play,
     ballId: id,
     ballTrace: undefined,
-    movements: play.movements.filter((m) => m.kind !== "pass"),
+    movements: play.movements.filter((m) => m.kind === "run"),
   };
 }
 export function blockFromPlay(play: Play): Block {
@@ -219,10 +238,16 @@ export function mergeRecovery(
   draft: NotebookData,
 ): NotebookData {
   // JSON key order is not record identity; parsing and optional fields can reorder it.
-  const signature = (record: unknown) => JSON.stringify(record, (_key, value) =>
-    value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]))
-      : value);
+  const signature = (record: unknown) =>
+    JSON.stringify(record, (_key, value) =>
+      value && typeof value === "object" && !Array.isArray(value)
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .map((key) => [key, value[key]]),
+          )
+        : value,
+    );
   const ids = new Map<string, string>();
   const additions: Play[] = [];
   for (const play of draft.plays) {
@@ -231,7 +256,11 @@ export function mergeRecovery(
       ids.set(play.id, play.id);
       continue;
     }
-    if (!original) { ids.set(play.id,play.id); additions.push(structuredClone(play)); continue; }
+    if (!original) {
+      ids.set(play.id, play.id);
+      additions.push(structuredClone(play));
+      continue;
+    }
     const id = uid();
     ids.set(play.id, id);
     additions.push({
@@ -245,9 +274,17 @@ export function mergeRecovery(
     const linksChanged = session.blocks.some(
       (b) => b.playId && ids.get(b.playId) !== b.playId,
     );
-    if (!linksChanged && signature(original) === signature(session))
-      return [];
-    if (!original) return [{...structuredClone(session),blocks:session.blocks.map(b=>({...b,playId:b.playId ? ids.get(b.playId) : undefined}))}];
+    if (!linksChanged && signature(original) === signature(session)) return [];
+    if (!original)
+      return [
+        {
+          ...structuredClone(session),
+          blocks: session.blocks.map((b) => ({
+            ...b,
+            playId: b.playId ? ids.get(b.playId) : undefined,
+          })),
+        },
+      ];
     return [
       {
         ...structuredClone(session),
@@ -279,8 +316,12 @@ export function positionAt(play: Play, playerId: string, time: number) {
       Math.max(0, (time - move.start) / move.duration),
     );
     if (move.trace) {
-      const point = traceAt(anchoredTrace(move.trace, { x, y }, move), progress);
-      x = point.x; y = point.y;
+      const point = traceAt(
+        anchoredTrace(move.trace, { x, y }, move),
+        progress,
+      );
+      x = point.x;
+      y = point.y;
     } else {
       x += (move.x - x) * progress;
       y += (move.y - y) * progress;
@@ -289,27 +330,82 @@ export function positionAt(play: Play, playerId: string, time: number) {
   }
   return { x, y };
 }
-export function ballAt(play: Play, time: number) {
-  if (play.ballTrace) return traceAt(tracePoints(play.ballTrace), time / (play.clipDuration ?? 6));
-  let holder = play.ballId;
-  for (const pass of play.movements
-    .filter((m) => m.kind === "pass")
-    .sort((a, b) => a.start - b.start)) {
-    if (time < pass.start) break;
-    const from = positionAt(play, pass.playerId, pass.start);
-    const to = pass.targetId
-      ? positionAt(play, pass.targetId, pass.start + pass.duration)
-      : { x: pass.x, y: pass.y };
-    if (time < pass.start + pass.duration) {
-      const k = (time - pass.start) / pass.duration;
+export const BALL_OFFSET = { x: 19 / 7, y: -17 / 6.2 };
+export function ballActions(play: Play) {
+  return play.movements
+    .filter((m) => m.kind !== "run")
+    .sort((a, b) => a.start - b.start);
+}
+export function kickHeight(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) {
+  return Math.max(
+    0,
+    Math.min(
+      14,
+      Math.hypot(to.x - from.x, to.y - from.y) * 0.3,
+      from.y - 4,
+      to.y - 4,
+    ),
+  );
+}
+export function ballStateAt(
+  play: Play,
+  time: number,
+): { x: number; y: number; height: number; offset: number; holderId?: string } {
+  if (play.ballTrace)
+    return {
+      ...traceAt(tracePoints(play.ballTrace), time / (play.clipDuration ?? 6)),
+      height: 0,
+      offset: 0,
+    };
+  let holder: string | undefined = play.ballId || undefined;
+  let loose = { x: 50, y: 50 };
+  for (const action of ballActions(play)) {
+    if (time < action.start) break;
+    const from = positionAt(play, action.playerId, action.start);
+    const to = action.targetId
+      ? positionAt(play, action.targetId, action.start + action.duration)
+      : { x: action.x, y: action.y };
+    if (time < action.start + action.duration) {
+      const k = Math.max(0, (time - action.start) / action.duration);
       return {
         x: from.x + (to.x - from.x) * k,
         y: from.y + (to.y - from.y) * k,
+        offset: action.targetId ? 1 : 1 - k,
+        height:
+          action.kind === "kick" ? 4 * k * (1 - k) * kickHeight(from, to) : 0,
       };
     }
-    holder = pass.targetId ?? holder;
+    holder = action.targetId;
+    loose = to;
   }
-  return positionAt(play, holder, time);
+  return {
+    ...(holder ? positionAt(play, holder, time) : loose),
+    holderId: holder,
+    height: 0,
+    offset: holder ? 1 : 0,
+  };
+}
+export function ballAt(play: Play, time: number) {
+  const { x, y } = ballStateAt(play, time);
+  return { x, y };
+}
+export function ballVisualAt(
+  play: Play,
+  time: number,
+  positions?: Record<string, { x: number; y: number }>,
+) {
+  const state = ballStateAt(play, time);
+  const point =
+    state.holderId && positions && Object.hasOwn(positions, state.holderId)
+      ? positions[state.holderId]
+      : state;
+  return {
+    x: point.x + BALL_OFFSET.x * state.offset,
+    y: point.y + BALL_OFFSET.y * state.offset - state.height,
+  };
 }
 export const firstPlay: Play = {
   id: "wide-door",

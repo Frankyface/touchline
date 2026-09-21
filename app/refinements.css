@@ -528,3 +528,39 @@ summary {
   .recorder-footer { flex-wrap: wrap; }
   .recorder-footer p { flex-basis: 100%; }
 }
+/* Possession and direct recording controls. */
+.ball-tools, .recording-heading { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.ball-tools button { min-height:44px; }
+.recording-heading { justify-content:space-between; font-size:13px; color:#365744; }
+.recording-heading span { font-size:12px; color:#657660; }
+.possession-badge { margin-left:auto; padding:6px 10px; border-radius:20px; color:#795619; background:#fff4d6; font-size:12px; white-space:nowrap; }
+.ball-timeline { width:100%; height:36px; accent-color:#285747; margin-top:8px; }
+.ball-action-list { display:grid; gap:6px; max-height:35dvh; overflow:auto; }
+.ball-action-row { display:flex; gap:8px; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--border); border-radius:7px; font-size:13px; background:#fff; text-align:left; }
+.ball-action-row small { white-space:nowrap; color:#657660; }
+.ball-notice, .legacy-ball-note { font-size:13px; line-height:1.6; padding:12px; border-radius:8px; background:#fff4d6; color:#715627; }
+.recorder-sidebar select { width:100%; min-height:44px; padding:8px; border:1px solid var(--border); border-radius:6px; font:inherit; background:#fff; }
+.recorder-surface .pitch-player { touch-action:none; }
+.ball-surface [data-ball] { touch-action:none; cursor:grab; }
+.ball-surface:active [data-ball] { cursor:grabbing; }
+.recorder-dialog .recorder-footer { position:sticky; bottom:-24px; background:var(--background, #fafcf9); z-index:2; padding-bottom:12px; }
+@media(max-width:760px) {
+  .ball-tools { gap:5px; }
+  .ball-tools button { padding-inline:12px; }
+  .ball-tools .possession-badge { flex-basis:100%; margin:0; width:fit-content; }
+  .recorder-surface .player-hit-target { r:42px; }
+  .recorder-surface .ball-hit-target { r:42px; }
+  .recorder-dialog .recorder-footer { bottom:-16px; gap:8px; }
+  .recorder-footer .form-note { display:none; }
+}
+.ball-preview-controls { display:contents; }
+.ball-tools .possession-badge { margin-left:auto; }
+.recorder-surface + .recorder-message { margin-bottom:0; }
+.ball-timeline { margin:0 0 8px; }
+@media(min-width:761px) {
+  .recorder-dialog .recorder-surface .pitch { max-height:min(58dvh, calc(96dvh - 310px)); }
+  .recorder-dialog .ball-surface .pitch { max-height:min(58dvh, calc(96dvh - 335px)); }
+  .recorder-sidebar { max-height:calc(96dvh - 255px); overflow-y:auto; padding-right:3px; }
+  .recorder-grid .recorder-transport { margin:0 0 12px; }
+  .recorder-message { min-height:0; margin:4px 0 10px; }
+}

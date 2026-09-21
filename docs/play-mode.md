@@ -2,29 +2,32 @@
 
 ## Use it
 
-1. Open a play and choose **Play mode** above the pitch.
-2. Set the clip length (1–30 seconds) before the first take. Select a player and press **Play & record**. The clock starts immediately, so waiting before moving is part of the take.
-3. Drag the selected player and release to finish. Early release holds their last position through the remaining clip. Each finished take plays alongside the next one on the same clock. **Keep this player still** handles stationary players.
-4. Record the ball last as an independent free trace, or let the starting carrier keep it. Arrow keys work during recording; **Finish take** completes keyboard takes. Escape or **Cancel take** discards only the current attempt.
-5. Preview the slate. **Natural movement** follows the original recording. **Polygon lines** uses up to 1–24 straight edges, with a 0–100% straightening control. Original samples and timestamps remain available; lowering the amount blends toward the hand-drawn path.
-6. **Use this slate** replaces the existing movement sequence in one undo step. A movement pencil edits an individual route's timing, endpoint and shape. Reopening Play mode preserves untouched adjustments.
+1. Open a play and choose **Play mode** above the pitch. The stages are **Players**, **Ball**, and **Preview**.
+2. Choose a clip length (1–30 seconds). Select a player, drag to start recording, and release to finish. Use **Start clock** to include a wait before moving, or to move with arrow keys. Early release holds the final position for the rest of the clip.
+3. Record only the players you want to change. Untouched players retain their routes or stay still. Earlier takes replay alongside the next player. **Undo take** restores the preceding take; **Keep selected player still** replaces that player's route with a stationary take.
+4. **Continue to ball**. The ball stays with its carrier. Choose **Pass** and tap a receiver, or drag the ball onto them; nearby receivers highlight and snap into possession. Choose **Kick** and tap a receiver or open space. A caught kick follows a curved flight and the receiver carries on. A kick into space stays at its landing spot; selecting a player afterwards assigns the kick's receiver before adding more actions.
+5. New passes and kicks follow the last ball action. Scrub to a later time to add a delay. Preview, restart, undo the last ball change, clear ball actions, or choose another starting carrier. Existing ball actions are preserved until changed.
+6. **Preview** the slate. **Natural movement** follows recorded timing. **Polygon lines** uses up to 1–24 straight edges with a 0–100% straightening control. Raw samples and timestamps remain available. Untouched routes keep their individual shape settings.
+7. **Use this slate** applies the draft in one editor undo step. A movement pencil edits timing, run endpoints/shape, or a kick's landing spot. Passes and kicks can also be added directly on the main drawing board.
 
-Recording ends automatically at the clip limit. Switching away from the tab or losing the pointer cancels the current take. Draft takes are applied only with **Use this slate**; closing/discarding the dialog leaves the play unchanged. Recordings illustrate authored movement and are not a rugby physics simulation.
+Recording ends automatically at the clip limit. Escape, losing the pointer or switching away cancels the current take; existing draft takes survive. Escape during a ball drag cancels that drag. Closing or discarding Play mode leaves the saved play unchanged. The drawing illustrates authored movement, not rugby physics.
 
 ## Storage and compatibility
 
-Raw points are normalized pitch coordinates with normalized timestamps. Capture samples at most about 20 times per second; validation permits 604 points per take. Drawing and playback share the same path transformation. Ball recordings replace authored passes; choosing another starting carrier or drawing a new pass removes the ball recording.
+Raw points use normalized pitch coordinates and timestamps. Capture samples at most about 20 times per second; validation permits 604 points per take. Drawing and playback share path transformations. A live recorded carrier supplies the launch position of existing ball actions, preventing jumps back to their old route.
 
-Backups contain the raw recordings and shape settings. Compact JSON avoids padding a recording backup with indentation. Recording apply, play/session copies, merged imports and recovery check a 1.9 MB notebook budget, leaving room below the 2 MB import/API limit. Saving has a final size guard and reports failures without claiming success.
+Older free-drawn ball recordings are retained exactly when players are edited. Use **Use carrier possession**, clear the ball route, choose a new carrier, or add a ball action to replace a free-drawn route. Undo can restore it before applying. Free-drawn ball paths and possession actions cannot coexist in a saved play.
 
-This update targets the GitHub Pages edition. The separately hosted account edition must be updated before it can import backups containing recording fields. Older notebooks still load in this edition without migration.
+Backups contain raw recordings, shape settings and pass/kick actions. Compact JSON avoids indentation overhead. Applying recordings, copying plays/sessions, merged imports and recovery check a 1.9 MB notebook budget below the 2 MB import/API limit. Saving has a final size guard and reports failures without claiming success.
+
+This update targets GitHub Pages. The separately hosted account edition must be updated before importing backups with new recording or kick fields. Older notebooks load in the Pages edition without migration.
 
 ## Verification — 2026-09-21
 
-- 32 model/workflow/recording tests cover concurrent playback, waiting and pauses, polygon bends/loops, bounded route edits, ball paths, mirroring, strict validation, backup/recovery roundtrip, near-equal capture timestamps, longest clips, untouched pencil edits, unusual imported IDs and UTF-8 size checks.
-- TypeScript and both static Pages and Sites production builds pass.
-- Actual browser flow: duplicate a local fixture, record one player by drag/release and another with arrows, hold remaining players, record the ball, preview, change polygon controls, apply, undo/redo, edit individual timing/edges, reopen/apply, cancel a redo, and reload saved work.
-- Responsive preview at 390×844: recording drag/release, scrolling, polygon edges and straightening controls checked. This is browser viewport coverage; physical touch hardware was not tested.
-- Read-only independent source review corrected preservation of earlier edits, preview geometry, timestamp normalization, imported ID handling and recording size limits.
+- 43 model/workflow/recording/ball tests cover timing, polygon paths, possession chains, moving catches, loose kick landings, mirroring, snapping, strict validation, backup/recovery, capture launch positions, preserved legacy traces, unusual imported IDs and size checks.
+- Uncached TypeScript and both Pages and shared Sites production builds passed.
+- Actual desktop browser checks: direct player drag, chained pass/kick/pass, drag-to-receiver snapping, space kick and receiver assignment, undo, apply, main-board kick, movement timing editor and reload persistence.
+- Browser viewport checks at 390×844 and 1280×720 cover pitch/controls/footer layout. Mobile-sized direct recording and keyboard take cancellation were exercised. Physical touch hardware was not tested.
+- Independent source review checked possession and pointer cancellation. Escape during a held ball drag was source-reviewed; the available browser control cannot isolate pointer-down/up for that exact interaction.
 
-The existing desktop browser download/print limitations still apply. This turn verifies backup serialization by automated tests, not native file-download completion.
+The previous release exercised polygon controls, editor undo/redo and individual route edits in the browser. Those observations remain historical; this release's new ball behavior is covered above. Backup serialization is tested; native download/print completion remains unverified in the in-app browser.

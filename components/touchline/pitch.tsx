@@ -1,8 +1,16 @@
 "use client";
 import { useId } from "react";
-import { ballAt, positionAt, type Play } from "@/lib/touchline/model";
+import {
+  ballVisualAt,
+  ballStateAt,
+  BALL_OFFSET,
+  kickHeight,
+  positionAt,
+  type Play,
+} from "@/lib/touchline/model";
 import { anchoredTrace, tracePoints } from "@/lib/touchline/trace";
-const linePath = (points: { x: number; y: number }[]) => points.map((p, i) => `${i ? "L" : "M"}${p.x * 7} ${p.y * 6.2}`).join(" ");
+const linePath = (points: { x: number; y: number }[]) =>
+  points.map((p, i) => `${i ? "L" : "M"}${p.x * 7} ${p.y * 6.2}`).join(" ");
 export function Pitch({
   play,
   time = 0,
@@ -18,6 +26,8 @@ export function Pitch({
   ballPosition,
   onBall,
   hideRoutes = false,
+  highlighted,
+  interactivePlayerId,
 }: {
   play: Play;
   time?: number;
@@ -33,10 +43,12 @@ export function Pitch({
   ballPosition?: { x: number; y: number };
   onBall?: () => void;
   hideRoutes?: boolean;
+  highlighted?: string;
+  interactivePlayerId?: string;
 }) {
   const id = useId().replaceAll(":", "");
-  const ball = ballPosition ?? ballAt(play, time);
-  const freeBall = !!(ballPosition || play.ballTrace);
+  const ball = ballPosition ?? ballVisualAt(play, time, positions);
+  const ballState = ballStateAt(play, time);
   return (
     <svg
       className={`pitch ${mini ? "mini-pitch" : ""}`}
@@ -53,7 +65,7 @@ export function Pitch({
       }}
     >
       <defs>
-        {["run", "pass"].map((kind) => (
+        {["run", "pass", "kick"].map((kind) => (
           <marker
             key={kind}
             id={`${id}-${kind}`}
@@ -110,62 +122,102 @@ export function Pitch({
           </text>
         </g>
       )}
-      {!hideRoutes && play.movements.map((m) => {
-        const p = positionAt(play, m.playerId, m.start);
-        const to =
-          m.kind === "pass" && m.targetId
-            ? positionAt(play, m.targetId, m.start + m.duration)
-            : { x: m.x, y: m.y };
-        const path = linePath(m.trace ? anchoredTrace(m.trace, p, m) : [p, to]);
-        return (
-          <g
-            key={m.id}
-            className="pitch-movement"
-            opacity={focusPlayer && m.playerId !== focusPlayer ? 0.15 : 1}
-          >
-            {onMovement && (
+      {!hideRoutes &&
+        play.movements.map((m) => {
+          const p = positionAt(play, m.playerId, m.start);
+          const to =
+            m.kind !== "run" && m.targetId
+              ? positionAt(play, m.targetId, m.start + m.duration)
+              : { x: m.x, y: m.y };
+          const fromBall = { x: p.x + BALL_OFFSET.x, y: p.y + BALL_OFFSET.y };
+          const toBall = {
+            x: to.x + (m.targetId ? BALL_OFFSET.x : 0),
+            y: to.y + (m.targetId ? BALL_OFFSET.y : 0),
+          };
+          const path =
+            m.kind === "kick"
+              ? `M${fromBall.x * 7} ${fromBall.y * 6.2} Q${(fromBall.x + toBall.x) * 3.5} ${((fromBall.y + toBall.y) / 2 - 2 * kickHeight(p, to)) * 6.2} ${toBall.x * 7} ${toBall.y * 6.2}`
+              : linePath(
+                  m.trace
+                    ? anchoredTrace(m.trace, p, m)
+                    : m.kind === "run"
+                      ? [p, to]
+                      : [fromBall, toBall],
+                );
+          return (
+            <g
+              key={m.id}
+              className="pitch-movement"
+              opacity={focusPlayer && m.playerId !== focusPlayer ? 0.15 : 1}
+            >
+              {onMovement && (
+                <path
+                  d={path}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={18}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit ${m.kind} by ${play.players.find((p) => p.id === m.playerId)?.label} at ${m.start.toFixed(1)} seconds`}
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMovement(m.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onMovement(m.id);
+                    }
+                  }}
+                />
+              )}
               <path
+                key={m.id}
                 d={path}
                 fill="none"
-                stroke="transparent"
-                strokeWidth={18}
-                role="button"
-                tabIndex={0}
-                aria-label={`Edit ${m.kind} by ${play.players.find((p) => p.id === m.playerId)?.label} at ${m.start.toFixed(1)} seconds`}
-                style={{ cursor: "pointer" }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMovement(m.id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onMovement(m.id);
-                  }
-                }}
+                stroke={m.kind !== "run" ? "#f3c76e" : "#e9f3d6"}
+                strokeWidth={mini ? 3 : 2.6}
+                strokeDasharray={
+                  m.kind === "kick"
+                    ? "3 5"
+                    : m.kind === "pass"
+                      ? "6 7"
+                      : undefined
+                }
+                opacity={time > m.start + m.duration ? 0.3 : 0.85}
+                markerEnd={`url(#${id}-${m.kind})`}
+                pointerEvents="none"
               />
-            )}
-            <path
-              key={m.id}
-              d={path}
-              fill="none"
-              stroke={m.kind === "pass" ? "#f3c76e" : "#e9f3d6"}
-              strokeWidth={mini ? 3 : 2.6}
-              strokeDasharray={m.kind === "pass" ? "6 7" : undefined}
-              opacity={time > m.start + m.duration ? 0.3 : 0.85}
-              markerEnd={`url(#${id}-${m.kind})`}
-              pointerEvents="none"
-            />
-          </g>
-        );
-      })}
-      {!hideRoutes && play.ballTrace && <path className="pitch-movement" d={linePath(tracePoints(play.ballTrace))} fill="none" stroke="#f3c76e" strokeWidth="2.6" strokeDasharray="6 7" markerEnd={`url(#${id}-pass)`} pointerEvents="none" />}
+            </g>
+          );
+        })}
+      {!hideRoutes && play.ballTrace && (
+        <path
+          className="pitch-movement"
+          d={linePath(tracePoints(play.ballTrace))}
+          fill="none"
+          stroke="#f3c76e"
+          strokeWidth="2.6"
+          strokeDasharray="6 7"
+          markerEnd={`url(#${id}-pass)`}
+          pointerEvents="none"
+        />
+      )}
       {play.players.map((p) => {
-        const pos = positions?.[p.id] ?? positionAt(play, p.id, time);
+        const pos =
+          positions && Object.hasOwn(positions, p.id)
+            ? positions[p.id]
+            : positionAt(play, p.id, time);
         return (
           <g
             key={p.id}
             data-player={p.id}
+            pointerEvents={
+              interactivePlayerId && interactivePlayerId !== p.id
+                ? "none"
+                : undefined
+            }
             opacity={focusPlayer && p.id !== focusPlayer ? 0.3 : 1}
             transform={`translate(${pos.x * 7},${pos.y * 6.2})`}
             role={onPlayer ? "button" : undefined}
@@ -209,6 +261,10 @@ export function Pitch({
               const el = e.currentTarget;
               el.setPointerCapture(e.pointerId);
               const origin = { x: e.clientX, y: e.clientY };
+              const grab = svg.createSVGPoint();
+              grab.x = e.clientX;
+              grab.y = e.clientY;
+              const start = grab.matrixTransform(svg.getScreenCTM()!.inverse());
               let moved = false;
               const move = (ev: PointerEvent) => {
                 if (
@@ -223,7 +279,11 @@ export function Pitch({
                 point.x = ev.clientX;
                 point.y = ev.clientY;
                 const c = point.matrixTransform(svg.getScreenCTM()!.inverse());
-                onDrag(p.id, c.x / 7, c.y / 6.2);
+                onDrag(
+                  p.id,
+                  p.x + (c.x - start.x) / 7,
+                  p.y + (c.y - start.y) / 6.2,
+                );
               };
               const up = () => {
                 el.removeEventListener("pointermove", move);
@@ -235,6 +295,27 @@ export function Pitch({
               el.addEventListener("pointercancel", up);
             }}
           >
+            {onPlayer && (
+              <circle className="player-hit-target" r="25" fill="transparent" />
+            )}
+            {highlighted === p.id && (
+              <circle
+                r="30"
+                fill="#f3c76e"
+                fillOpacity=".2"
+                stroke="#f3c76e"
+                strokeWidth="3"
+              />
+            )}
+            {ballState.holderId === p.id && !ballPosition && (
+              <circle
+                r="23"
+                fill="none"
+                stroke="#f3c76e"
+                strokeOpacity=".7"
+                strokeWidth="1.5"
+              />
+            )}
             {selected === p.id && (
               <circle r="25" fill="none" stroke="#f4d083" strokeWidth="2" />
             )}
@@ -268,18 +349,36 @@ export function Pitch({
           </g>
         );
       })}
-      {(freeBall || play.players.some((p) => p.id === play.ballId)) && (
+      {(ballPosition ||
+        play.ballTrace ||
+        play.players.some((p) => p.id === play.ballId)) && (
         <g
-          transform={`translate(${ball.x * 7 + (freeBall ? 0 : 19)},${ball.y * 6.2 - (freeBall ? 0 : 17)})`}
+          transform={`translate(${ball.x * 7},${ball.y * 6.2})`}
           pointerEvents={onBall ? "all" : "none"}
           data-ball="true"
           role={onBall ? "button" : undefined}
-          aria-label={onBall ? "Record the ball" : undefined}
+          aria-label={onBall ? "Ball — drag to pass or kick" : undefined}
           tabIndex={onBall ? 0 : undefined}
-          onClick={(e) => { e.stopPropagation(); onBall?.(); }}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onBall?.(); } }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBall?.();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onBall?.();
+            }
+          }}
         >
-          {onBall && <circle r="23" fill="#efc36d" fillOpacity=".12" stroke="#efc36d" />}
+          {onBall && (
+            <circle
+              className="ball-hit-target"
+              r="28"
+              fill="#efc36d"
+              fillOpacity=".12"
+              stroke="#efc36d"
+            />
+          )}
           <ellipse
             rx="8"
             ry="5"

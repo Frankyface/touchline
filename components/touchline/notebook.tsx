@@ -1044,15 +1044,17 @@ export default function Notebook({ store, homeHref = "/" }: { store?: NotebookSt
               <p>
                 <b>02 · Give it movement.</b> Choose Run, select a player, and
                 tap the pitch to draw a route. Keep tapping to extend it. Choose
-                Pass and tap the next receiver.
+                Pass and tap the next receiver, or Kick and tap a player or open
+                space.
               </p>
               <p>
                 <b>Or perform it in Play mode.</b> Choose a clip length, select a
-                player, press Play &amp; record, then drag and release. Earlier
-                takes replay as you record each teammate. Keep stationary players
-                still, then record the ball last. Shape the slate with natural
-                paths or polygon edges and a straightening slider. Use this slate
-                applies it; Undo restores your previous sequence.
+                player, then drag and release to record. Start clock lets you add
+                a pause before moving. Untouched players keep their existing
+                routes. Continue to Ball: choose Pass or Kick and tap a target,
+                or drag the ball onto a receiver. The ball stays with its carrier.
+                Preview natural paths or polygon edges, then Use this slate.
+                Undo restores your previous sequence.
               </p>
               <p>
                 <b>03 · Play it through.</b> Use playback or scrub the timeline.

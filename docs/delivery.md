@@ -1,5 +1,13 @@
 # Delivery receipt
 
+## Ball possession and smoother Play mode — 2026-09-21
+
+Target: [GitHub Pages](https://frankyface.github.io/touchline/). This receipt's commit adds carrier-following possession, snap-to-receiver passes, curved kicks, direct drag recording, preserved untouched routes, action/take undo and compact responsive controls. The corresponding [Pages workflow run](https://github.com/Frankyface/touchline/actions/workflows/pages.yml) records its exact SHA and deployment result.
+
+Local release checks passed: 43 tests, uncached TypeScript, Pages production build and shared Sites production build. Actual desktop and phone-sized browser interaction coverage and limits are recorded in [Play mode](play-mode.md). Independent source review found no remaining blocker. The disposable local QA variation was removed; hosted notebook data was not edited for these checks.
+
+The private account-backed Sites deployment remains unchanged and cannot import new recording/kick fields until updated. Pages-to-Pages backups remain supported.
+
 ## Research update — 2026-09-15 21:23 UTC
 
 Version 2 is privately published and its product source is pushed to [Frankyface/touchline](https://github.com/Frankyface/touchline).
