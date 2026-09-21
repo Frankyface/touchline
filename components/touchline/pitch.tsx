@@ -1,6 +1,8 @@
 "use client";
 import { useId } from "react";
 import { ballAt, positionAt, type Play } from "@/lib/touchline/model";
+import { anchoredTrace, tracePoints } from "@/lib/touchline/trace";
+const linePath = (points: { x: number; y: number }[]) => points.map((p, i) => `${i ? "L" : "M"}${p.x * 7} ${p.y * 6.2}`).join(" ");
 export function Pitch({
   play,
   time = 0,
@@ -12,6 +14,10 @@ export function Pitch({
   onNudge,
   onMovement,
   focusPlayer,
+  positions,
+  ballPosition,
+  onBall,
+  hideRoutes = false,
 }: {
   play: Play;
   time?: number;
@@ -23,9 +29,14 @@ export function Pitch({
   onNudge?: (id: string, x: number, y: number) => void;
   onMovement?: (id: string) => void;
   focusPlayer?: string;
+  positions?: Record<string, { x: number; y: number }>;
+  ballPosition?: { x: number; y: number };
+  onBall?: () => void;
+  hideRoutes?: boolean;
 }) {
   const id = useId().replaceAll(":", "");
-  const ball = ballAt(play, time);
+  const ball = ballPosition ?? ballAt(play, time);
+  const freeBall = !!(ballPosition || play.ballTrace);
   return (
     <svg
       className={`pitch ${mini ? "mini-pitch" : ""}`}
@@ -99,12 +110,13 @@ export function Pitch({
           </text>
         </g>
       )}
-      {play.movements.map((m) => {
+      {!hideRoutes && play.movements.map((m) => {
         const p = positionAt(play, m.playerId, m.start);
         const to =
           m.kind === "pass" && m.targetId
             ? positionAt(play, m.targetId, m.start + m.duration)
             : { x: m.x, y: m.y };
+        const path = linePath(m.trace ? anchoredTrace(m.trace, p, m) : [p, to]);
         return (
           <g
             key={m.id}
@@ -113,7 +125,7 @@ export function Pitch({
           >
             {onMovement && (
               <path
-                d={`M${p.x * 7} ${p.y * 6.2} L${to.x * 7} ${to.y * 6.2}`}
+                d={path}
                 fill="none"
                 stroke="transparent"
                 strokeWidth={18}
@@ -135,7 +147,7 @@ export function Pitch({
             )}
             <path
               key={m.id}
-              d={`M${p.x * 7} ${p.y * 6.2} L${to.x * 7} ${to.y * 6.2}`}
+              d={path}
               fill="none"
               stroke={m.kind === "pass" ? "#f3c76e" : "#e9f3d6"}
               strokeWidth={mini ? 3 : 2.6}
@@ -147,8 +159,9 @@ export function Pitch({
           </g>
         );
       })}
+      {!hideRoutes && play.ballTrace && <path className="pitch-movement" d={linePath(tracePoints(play.ballTrace))} fill="none" stroke="#f3c76e" strokeWidth="2.6" strokeDasharray="6 7" markerEnd={`url(#${id}-pass)`} pointerEvents="none" />}
       {play.players.map((p) => {
-        const pos = positionAt(play, p.id, time);
+        const pos = positions?.[p.id] ?? positionAt(play, p.id, time);
         return (
           <g
             key={p.id}
@@ -255,11 +268,18 @@ export function Pitch({
           </g>
         );
       })}
-      {play.players.some((p) => p.id === play.ballId) && (
+      {(freeBall || play.players.some((p) => p.id === play.ballId)) && (
         <g
-          transform={`translate(${ball.x * 7 + 19},${ball.y * 6.2 - 17})`}
-          pointerEvents="none"
+          transform={`translate(${ball.x * 7 + (freeBall ? 0 : 19)},${ball.y * 6.2 - (freeBall ? 0 : 17)})`}
+          pointerEvents={onBall ? "all" : "none"}
+          data-ball="true"
+          role={onBall ? "button" : undefined}
+          aria-label={onBall ? "Record the ball" : undefined}
+          tabIndex={onBall ? 0 : undefined}
+          onClick={(e) => { e.stopPropagation(); onBall?.(); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onBall?.(); } }}
         >
+          {onBall && <circle r="23" fill="#efc36d" fillOpacity=".12" stroke="#efc36d" />}
           <ellipse
             rx="8"
             ry="5"

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Movement, Play } from "@/lib/touchline/model";
 import { playSchema } from "@/lib/touchline/validation";
+import { TraceControls } from "./play-recorder";
 
 export function MovementEditor({
   play,
@@ -29,6 +30,7 @@ export function MovementEditor({
     y: String(movement.y),
   });
   const [error, setError] = useState("");
+  const [trace, setTrace] = useState(movement.trace);
   const label = play.players.find((p) => p.id === movement.playerId)?.label;
   return (
     <Dialog
@@ -60,6 +62,7 @@ export function MovementEditor({
               duration: Number(draft.duration),
               x: Number(draft.x),
               y: Number(draft.y),
+              ...(trace ? { trace } : {}),
             };
             const valid = playSchema.safeParse({
               ...play,
@@ -141,6 +144,8 @@ export function MovementEditor({
               the arrival time.
             </p>
           )}
+          {trace && <TraceControls value={trace} onChange={settings => setTrace({ ...trace, ...settings })} />}
+          {trace && <p className="form-note">Timing changes retime the recorded movement. Start/end edits reshape the route; the original recording stays available.</p>}
           <p className="form-note">
             Runs for the same player cannot overlap. Passes must stay in
             possession order.

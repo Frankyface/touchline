@@ -13,7 +13,7 @@ The root agent owns all Site source, publishing, and integrated records. Sites s
 - Build: Sites `scripts/build-site.mjs`; standalone `npm run build`.
 - Type check: `node node_modules/typescript/bin/tsc --noEmit`
 - Migrations: `npm run db:generate`, then local Wrangler D1 execute using the generated config.
-- Tests: `node --experimental-strip-types --test tests/model.test.mjs tests/workflow.test.mjs` and local-only `node tests/api.test.mjs`.
+- Tests: `node --experimental-strip-types --test tests/model.test.mjs tests/workflow.test.mjs tests/recording.test.mjs` and local-only `node tests/api.test.mjs`.
 
 ## Standards
 Keep a functional drawing surface in the first viewport, preserve keyboard/touch paths, validate saved/imported data, and scope all persistent records to the authenticated user. No mock save success. Animation illustrates authored routes; it is not a rugby simulation.

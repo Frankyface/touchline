@@ -1,6 +1,15 @@
 import { z } from "zod";
 const id = z.string().min(1).max(100);
 const point = z.number().finite().min(3).max(97);
+const trace = z.object({
+  points: z.array(z.object({ x: point, y: point, t: z.number().finite().min(0).max(1) }).strict()).min(2).max(604),
+  mode: z.enum(["natural", "polygon"]),
+  edges: z.number().int().min(1).max(24),
+  straighten: z.number().finite().min(0).max(100),
+}).strict().superRefine((value, ctx) => {
+  if (value.points[0]?.t !== 0 || value.points.at(-1)?.t !== 1 || value.points.some((p, i) => i > 0 && p.t <= value.points[i - 1].t))
+    ctx.addIssue({ code: "custom", message: "Recorded points must run from 0 to 1 in time order" });
+});
 const player = z
   .object({
     id,
@@ -20,6 +29,7 @@ const movement = z
     targetId: id.optional(),
     start: z.number().finite().min(0).max(180),
     duration: z.number().finite().min(0.2).max(30),
+    trace: trace.optional(),
   })
   .strict();
 export const playSchema = z
@@ -34,6 +44,8 @@ export const playSchema = z
     easier: z.string().max(1000).optional(),
     challenge: z.string().max(1000).optional(),
     favorite: z.boolean().optional(),
+    clipDuration: z.number().finite().min(1).max(30).optional(),
+    ballTrace: trace.optional(),
     players: z.array(player).max(40),
     movements: z.array(movement).max(120),
     ballId: z.string().max(100),
@@ -41,6 +53,8 @@ export const playSchema = z
   })
   .strict()
   .superRefine((p, ctx) => {
+    if (p.ballTrace && (!p.clipDuration || p.movements.some(m => m.kind === "pass")))
+      ctx.addIssue({ code: "custom", message: "A recorded ball route needs a clip duration and replaces authored passes" });
     const ids = new Set(p.players.map((x) => x.id));
     if (
       ids.size !== p.players.length ||
@@ -53,6 +67,8 @@ export const playSchema = z
     )
       ctx.addIssue({ code: "custom", message: "Unknown ball carrier" });
     for (const m of p.movements) {
+      if (m.trace && (m.kind !== "run" || p.players.find(p => p.id === m.playerId)?.team === "cone"))
+        ctx.addIssue({ code: "custom", message: "Only player runs can have a recorded route" });
       if (
         !ids.has(m.playerId) ||
         (m.kind === "pass" && (!m.targetId || !ids.has(m.targetId)))

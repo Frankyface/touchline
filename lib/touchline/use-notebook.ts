@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initialData, mergeRecovery, type NotebookData } from "./model";
+import { notebookSizeError } from "./recording";
 import { notebookSchema } from "./validation";
 import { accountNotebookStore, NotebookConflict, type NotebookStore } from "./notebook-store";
 
@@ -48,6 +49,7 @@ export function useNotebook(store: NotebookStore = accountNotebookStore) {
           throw new Error(
             "Recovery copies would exceed the notebook limits. Your draft is still here; download a backup before making room.",
           );
+        if (notebookSizeError(merged)) throw new Error("Recovery copies would fill this notebook. Your draft is still here; download a backup before making room.");
         next = merged;
       }
       revision.current = body.revision;
@@ -91,6 +93,8 @@ export function useNotebook(store: NotebookStore = accountNotebookStore) {
       setStatus("Complete required fields to save");
       return;
     }
+    const sizeError = notebookSizeError(snapshot);
+    if (sizeError) { setStatus("Changes not saved"); setError(sizeError); return; }
     setStatus("Saving…");
     let success = false;
     const request = (async () => {
@@ -135,11 +139,15 @@ export function useNotebook(store: NotebookStore = accountNotebookStore) {
     };
   }, [load]);
   useEffect(() => {
-    if (!ready || JSON.stringify(data) === saved.current) return;
+    if (!ready) return;
+    if (JSON.stringify(data) === saved.current) {
+      if (!conflict.current && !loading.current) { setError(""); setStatus(savedStatus); }
+      return;
+    }
     if (!conflict.current) setStatus("Unsaved changes");
     const timer = setTimeout(() => void flush(), 700);
     return () => clearTimeout(timer);
-  }, [data, ready, flush]);
+  }, [data, ready, flush, savedStatus]);
   useEffect(() => {
     const leave = (e: BeforeUnloadEvent) => {
       if (JSON.stringify(latest.current) !== saved.current && saved.current) {

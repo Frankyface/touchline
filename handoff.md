@@ -1,5 +1,9 @@
 # Touchline handoff
 
+## Play mode — 2026-09-21
+
+Active feature: [Play mode](docs/play-mode.md). Sequential real-time player and ball recording, natural/polygon paths, edge/straightening controls, preview, one-step undo, preserved per-player corrections and compact size-checked backups are implemented. Targets the GitHub Pages deployment; the older private Sites deployment has not been republished for this update. See the delivery record for the published commit and action result.
+
 ## GitHub Pages edition
 
 The user requested GitHub Pages. A separate static Vite entry under `github-pages/` now reuses the shared Notebook with transactional IndexedDB storage, clear device-local saving copy and base-safe links. The default authenticated Sites adapter remains in place. `.github/workflows/pages.yml` builds/tests and publishes `dist-pages` from main; Pages is enabled in Actions mode at `https://frankyface.github.io/touchline/`. See `docs/github-pages.md` for implementation, tests and storage limits. This edition does not sync account notebooks automatically.

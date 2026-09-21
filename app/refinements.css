@@ -489,3 +489,42 @@ summary {
     stroke: #5f7954;
   }
 }
+/* Perform a play, then shape its recorded paths. */
+.recorder-dialog { width: min(1180px, 96vw); max-width: 1180px !important; max-height: 96dvh; overflow-y: auto; padding: 24px; }
+.recorder-stages { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+.recorder-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; align-items: start; }
+.recorder-surface { position: relative; border-radius: 8px; touch-action: none; }
+.recorder-surface .pitch { width: 100%; max-height: 58dvh; }
+.recorder-surface.is-recording { outline: 3px solid #bb6f49; outline-offset: 3px; }
+.recorder-surface.is-recording .pitch-player, .recorder-surface [data-ball] { cursor: grab; }
+.recorder-surface.is-recording:active .pitch-player { cursor: grabbing; }
+.recorder-transport { display: flex; align-items: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+.recorder-transport button { min-height: 46px; }
+.recorder-message { font-size: 13px; line-height: 1.6; margin-top: 12px; color: #55675d; min-height: 42px; }
+.recorder-sidebar { display: grid; gap: 14px; }
+.take-list { display: grid; gap: 5px; max-height: 38dvh; overflow-y: auto; }
+.take-row { display: flex; align-items: center; gap: 9px; text-align: left; padding: 11px 10px; min-height: 46px; border: 1px solid var(--border); border-radius: 6px; background: #fff; font-size: 13px; }
+.take-row small { margin-left: auto; font-size: 10px; color: #647469; }
+.take-row.active { background: #edf2e7; border-color: #749378; }
+.take-row:disabled { opacity: .55; }
+.ball-take { border-color: #e4d2a8; }
+.trace-controls { display: grid; gap: 16px; min-width: 0; border: 0; padding: 0; }
+.trace-controls legend { font-weight: 600; margin-bottom: 14px; }
+.trace-controls label { font-size: 13px; display: block; }
+.trace-controls output { float: right; font-variant-numeric: tabular-nums; }
+.trace-controls input[type=range] { display: block; width: 100%; height: 32px; accent-color: #285747; margin-top: 4px; }
+.trace-modes { display: flex; flex-wrap: wrap; gap: 8px; }
+.recorder-footer { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px; }
+.recorder-footer p { flex: 1; }
+.recorded-ball-details { margin: 16px 0; }
+@media(max-width: 760px) {
+  .recorder-dialog { padding: 16px; width: 97vw; }
+  .recorder-grid { grid-template-columns: 1fr; gap: 16px; }
+  .recorder-surface .pitch { max-height: 52dvh; }
+  .recorder-stages { gap: 2px; }
+  .recorder-stages button { padding-inline: 8px; font-size: 12px; }
+  .take-list { grid-template-columns: 1fr 1fr; max-height: 240px; }
+  .take-row small { display: none; }
+  .recorder-footer { flex-wrap: wrap; }
+  .recorder-footer p { flex-basis: 100%; }
+}

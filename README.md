@@ -6,7 +6,7 @@ A calm, personal rugby notebook. Draw a play, watch the movement, collect variat
 
 ## GitHub Pages
 
-The Pages edition provides the same drawing board, playbook and session tools without sign-in. It saves to IndexedDB **in the current browser on the current device**. It does not sync with the account-backed edition. Use **Back up notebook** and **Import backup** to transfer work; clearing site data or closing a private browsing session can remove local notebooks.
+The Pages edition provides the same drawing board, playbook and session tools without sign-in. It saves to IndexedDB **in the current browser on the current device**. It does not sync with the account-backed edition. Use **Back up notebook** and **Import backup** to transfer work between current versions (the older account deployment does not yet accept recorded Play mode paths); clearing site data or closing a private browsing session can remove local notebooks.
 
 Every push to `main` runs the tests, type check and static build, then deploys `dist-pages` through [.github/workflows/pages.yml](.github/workflows/pages.yml). GitHub Pages is public, but notebook contents stay in each visitor's browser and are not included in deployment artifacts.
 
@@ -20,6 +20,7 @@ Open the printed URL with `/touchline/`. The static entry is `github-pages/`; it
 ## Use it
 
 - **Drawing board:** start from five editable formations, position players and cones, and draw runs and passes. Select an arrow or its pencil to edit timing and run endpoints. Mirror a play, undo/redo, scrub, pause or change playback speed.
+- **Play mode:** record each player by dragging in real time, ball last, then turn the takes into a slate. Keep the natural path or choose polygon edges and straightening. Pauses and pace remain in the timeline; individual routes stay editable. [Guide and checks](docs/play-mode.md).
 - **Show play:** explain a sequence with a clean presentation view, previous/next movement moments and individual player focus.
 - **Playbook:** favorites, categories, search and sorting help retrieve ideas. Duplicate variations or import validated backups as new copies. Add any play directly to a new or existing session.
 - **Sessions:** combine plays and freeform blocks with a purpose, observable cues, setup and easier/harder variations. Reuse blocks, reorder them, see start offsets and gather equipment notes into one list.

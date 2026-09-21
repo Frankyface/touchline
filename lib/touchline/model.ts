@@ -1,3 +1,5 @@
+// @ts-ignore Node's model tests import TypeScript directly.
+import { anchoredTrace, traceAt, tracePoints, type Trace } from "./trace.ts";
 export type Team = "attack" | "defence" | "cone";
 export type Player = {
   id: string;
@@ -15,6 +17,7 @@ export type Movement = {
   targetId?: string;
   start: number;
   duration: number;
+  trace?: Trace;
 };
 export type Play = {
   id: string;
@@ -27,6 +30,8 @@ export type Play = {
   easier?: string;
   challenge?: string;
   favorite?: boolean;
+  clipDuration?: number;
+  ballTrace?: Trace;
   players: Player[];
   movements: Movement[];
   ballId: string;
@@ -125,12 +130,15 @@ export const uid = () => crypto.randomUUID();
 export const clamp = (v: number, min = 4, max = 96) =>
   Math.max(min, Math.min(max, v));
 export const totalTime = (play: Play) =>
-  Math.max(6, ...play.movements.map((m) => m.start + m.duration));
+  Math.max(play.clipDuration ?? 6, ...play.movements.map((m) => m.start + m.duration));
 export function mirrorPlay(play: Play): Play {
   return {
     ...play,
     players: play.players.map((p) => ({ ...p, x: 100 - p.x })),
-    movements: play.movements.map((m) => ({ ...m, x: 100 - m.x })),
+    movements: play.movements.map((m) => ({ ...m, x: 100 - m.x,
+      ...(m.trace ? { trace: { ...m.trace, points: m.trace.points.map(p => ({ ...p, x: 100 - p.x })) } } : {}),
+    })),
+    ...(play.ballTrace ? { ballTrace: { ...play.ballTrace, points: play.ballTrace.points.map(p => ({ ...p, x: 100 - p.x })) } } : {}),
   };
 }
 export function setStartingCarrier(play: Play, id: string): Play {
@@ -142,6 +150,7 @@ export function setStartingCarrier(play: Play, id: string): Play {
   return {
     ...play,
     ballId: id,
+    ballTrace: undefined,
     movements: play.movements.filter((m) => m.kind !== "pass"),
   };
 }
@@ -269,13 +278,19 @@ export function positionAt(play: Play, playerId: string, time: number) {
       1,
       Math.max(0, (time - move.start) / move.duration),
     );
-    x += (move.x - x) * progress;
-    y += (move.y - y) * progress;
+    if (move.trace) {
+      const point = traceAt(anchoredTrace(move.trace, { x, y }, move), progress);
+      x = point.x; y = point.y;
+    } else {
+      x += (move.x - x) * progress;
+      y += (move.y - y) * progress;
+    }
     if (progress < 1) break;
   }
   return { x, y };
 }
 export function ballAt(play: Play, time: number) {
+  if (play.ballTrace) return traceAt(tracePoints(play.ballTrace), time / (play.clipDuration ?? 6));
   let holder = play.ballId;
   for (const pass of play.movements
     .filter((m) => m.kind === "pass")

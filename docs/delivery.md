@@ -35,3 +35,10 @@ The hosted app loaded successfully with authenticated notebook access. An actual
 The official packaging wrapper could not launch its Bash subprocess on Windows. Following its inspected contract, native tar packaged the complete validated dist tree, including hidden .openai metadata and D1 migrations. The connector validated and saved the archive before deployment. No source files, credentials or node_modules were included in the deployment archive.
 
 All F001–F005 scope is delivered. See README and docs/verification.md for controls, local execution and the remaining native print/download verification limit. These final delivery records are documentation added after the published source checkpoint; product source is unchanged.
+## Play mode update — 2026-09-21
+
+Target: [GitHub Pages](https://frankyface.github.io/touchline/). The commit adding this section includes sequential player/ball recording, recorded-path playback, polygon controls, editor integration and backup limits. Its corresponding [Pages workflow run](https://github.com/Frankyface/touchline/actions/workflows/pages.yml) records the exact published SHA and deployment result.
+
+Local release checks passed: 32 tests, uncached TypeScript, Pages production build and shared Sites production build. Actual desktop and phone-sized browser interaction coverage is recorded in [Play mode](play-mode.md). The disposable local QA variation was removed; no hosted notebook data was edited for these checks.
+
+The private account-backed Sites deployment is unchanged by this release. Its old schema does not accept new recording fields; Pages-to-Pages backups remain supported.

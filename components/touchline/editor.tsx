@@ -47,11 +47,13 @@ import { downloadFile } from "@/lib/touchline/export";
 import { Pitch } from "./pitch";
 import { MovementEditor } from "./movement-editor";
 import { Presentation } from "./presentation";
+import { PlayRecorder, TraceControls } from "./play-recorder";
 
 type Mode = "select" | "run" | "pass" | "attack" | "defence" | "cone";
 export function Editor({
   play,
   onChange,
+  recordingError,
   onDuplicate,
   onPrint,
   onAddSession,
@@ -59,6 +61,7 @@ export function Editor({
 }: {
   play: Play;
   onChange: (p: Play) => void;
+  recordingError?: (p: Play) => string | undefined;
   onDuplicate: () => void;
   onPrint: () => void;
   onAddSession: () => void;
@@ -73,7 +76,8 @@ export function Editor({
     [future, setFuture] = useState<Play[]>([]),
     [hint, setHint] = useState(""),
     [editingMovement, setEditingMovement] = useState<string | null>(null),
-    [presenting, setPresenting] = useState(false);
+    [presenting, setPresenting] = useState(false),
+    [recordingPlay, setRecordingPlay] = useState(false);
   const current = useRef(play);
   current.current = play;
   const dragSnapshot = useRef<Play | null>(null);
@@ -97,6 +101,7 @@ export function Editor({
     setMode("select");
     setEditingMovement(null);
     setPresenting(false);
+    setRecordingPlay(false);
   }, [play.id]);
   useEffect(() => {
     if (!playing) return;
@@ -183,7 +188,7 @@ export function Editor({
       setHint("This play has reached the three-minute sequence limit.");
       return;
     }
-    update({ movements: [...play.movements, movement] });
+    update({ movements: [...play.movements, movement], ...(movement.kind === "pass" ? { ballTrace: undefined } : {}) });
   };
   const onPlayer = (id: string) => {
     if (disabled) return;
@@ -300,6 +305,7 @@ export function Editor({
         play.ballId === selected
           ? (players.find((p) => p.team !== "cone")?.id ?? "")
           : play.ballId,
+      ballTrace: play.ballId === selected ? undefined : play.ballTrace,
     });
     setSelected("");
     setHint(
@@ -375,6 +381,9 @@ export function Editor({
           </div>
         </div>
         <div className="board-quick-actions">
+          <Button variant="outline" disabled={disabled || !play.players.some(p => p.team !== "cone")} onClick={() => { setPlaying(false); setRecordingPlay(true); }}>
+            <PlayIcon />Play mode
+          </Button>
           <Button variant="ghost" onClick={() => setPresenting(true)}>
             <Maximize2 />
             Show play
@@ -712,6 +721,12 @@ export function Editor({
             </div>
           )}
           <div className="divider" />
+          {play.ballTrace && <details className="practice-details recorded-ball-details">
+            <summary>Recorded ball route</summary>
+            <TraceControls value={play.ballTrace} onChange={settings => update({ ballTrace: { ...play.ballTrace!, ...settings } })} />
+            <Button variant="ghost" onClick={() => update({ ballTrace: undefined })}>Remove ball recording</Button>
+            <p className="form-note">Drawing a new pass or changing the starting carrier replaces this route.</p>
+          </details>}
           <div className="panel-heading">
             <span>MOVEMENT SEQUENCE</span>
             <span>{play.movements.length}</span>
@@ -739,7 +754,7 @@ export function Editor({
                         {m.kind === "pass"
                           ? "→ " +
                             play.players.find((p) => p.id === m.targetId)?.label
-                          : "runs"}
+                          : m.trace ? "recorded run" : "runs"}
                       </strong>
                       <small>
                         {m.start.toFixed(1)}–{(m.start + m.duration).toFixed(1)}
@@ -802,6 +817,7 @@ export function Editor({
       {presenting && (
         <Presentation play={play} onClose={() => setPresenting(false)} />
       )}
+      {recordingPlay && <PlayRecorder play={play} onApply={next => { const error = recordingError?.(next); if (error) return error; edit(next); setHint("Recording converted into a slate. Play it through, or use a movement pencil to adjust its lines. Undo restores your previous sequence."); }} onClose={() => setRecordingPlay(false)} />}
     </div>
   );
 }

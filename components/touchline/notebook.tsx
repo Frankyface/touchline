@@ -61,6 +61,7 @@ import {
   type Session,
   type NotebookData,
 } from "@/lib/touchline/model";
+import { notebookBackup, notebookSizeError } from "@/lib/touchline/recording";
 import { notebookSchema } from "@/lib/touchline/validation";
 import { useNotebook } from "@/lib/touchline/use-notebook";
 import type { NotebookStore } from "@/lib/touchline/notebook-store";
@@ -217,11 +218,7 @@ export default function Notebook({ store, homeHref = "/" }: { store?: NotebookSt
   };
   const backup = () =>
     downloadFile(
-      JSON.stringify(
-        { format: "touchline-notebook", version: 1, data },
-        null,
-        2,
-      ),
+      notebookBackup(data),
       "touchline-notebook-" + new Date().toISOString().slice(0, 10) + ".json",
       "application/json",
     );
@@ -243,6 +240,8 @@ export default function Notebook({ store, homeHref = "/" }: { store?: NotebookSt
       title: (p.title + " — variation").slice(0, 100),
       updatedAt: new Date().toISOString(),
     };
+    const sizeError = notebookSizeError({ ...current.current, plays: [...current.current.plays, copy] });
+    if (sizeError) return toast.error(sizeError);
     setData((d) => ({ ...d, plays: [...d.plays, copy] }));
     openPlay(copy.id);
     toast.success("Variation created");
@@ -264,6 +263,8 @@ export default function Notebook({ store, homeHref = "/" }: { store?: NotebookSt
   const duplicateSession = (s: Session) => {
     if (data.sessions.length >= 50) return;
     const copy = repeatSession(s);
+    const sizeError = notebookSizeError({ ...current.current, sessions: [...current.current.sessions, copy] });
+    if (sizeError) return toast.error(sizeError);
     setData((d) => ({
       ...d,
       sessions: [...d.sessions, copy],
@@ -338,6 +339,8 @@ export default function Notebook({ store, homeHref = "/" }: { store?: NotebookSt
         ],
       };
       notebookSchema.parse(merged);
+      const sizeError = notebookSizeError(merged);
+      if (sizeError) throw new Error(sizeError);
       setData(merged);
       toast.success("Backup added to your notebook");
     } catch (e) {
@@ -643,6 +646,7 @@ export default function Notebook({ store, homeHref = "/" }: { store?: NotebookSt
                   <Editor
                     play={play}
                     onChange={updatePlay}
+                    recordingError={next => notebookSizeError({ ...current.current, plays: current.current.plays.map(p => p.id === next.id ? next : p) })}
                     onDuplicate={() => duplicate(play)}
                     onPrint={() => setPrint({ play })}
                     onAddSession={() => chooseSession(play)}
@@ -1041,6 +1045,14 @@ export default function Notebook({ store, homeHref = "/" }: { store?: NotebookSt
                 <b>02 · Give it movement.</b> Choose Run, select a player, and
                 tap the pitch to draw a route. Keep tapping to extend it. Choose
                 Pass and tap the next receiver.
+              </p>
+              <p>
+                <b>Or perform it in Play mode.</b> Choose a clip length, select a
+                player, press Play &amp; record, then drag and release. Earlier
+                takes replay as you record each teammate. Keep stationary players
+                still, then record the ball last. Shape the slate with natural
+                paths or polygon edges and a straightening slider. Use this slate
+                applies it; Undo restores your previous sequence.
               </p>
               <p>
                 <b>03 · Play it through.</b> Use playback or scrub the timeline.
